@@ -51,3 +51,13 @@
   .room-code{font-size:25px}
   .manage-modal{padding:6px}
 }
+
+/* Kalim timer stepper */
+.timer-stepper{display:grid;grid-template-columns:54px minmax(110px,160px) 54px;justify-content:center;align-items:stretch;gap:8px;margin:4px auto 7px}
+.timer-stepper>button{font-size:25px;padding:8px 0}
+.timer-stepper-value{background:#0b1428;border:1px solid var(--line);border-radius:14px;display:flex;align-items:baseline;justify-content:center;gap:6px;padding:8px 14px}
+.timer-stepper-value b{font-size:30px;color:var(--gold);line-height:1}
+.timer-stepper-value span{font-size:11px;color:var(--muted)}
+.host-play-area{margin-top:6px}
+.host-hand-title{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+@media(max-width:560px){.timer-stepper{grid-template-columns:48px minmax(100px,140px) 48px}.timer-stepper-value b{font-size:27px}}
