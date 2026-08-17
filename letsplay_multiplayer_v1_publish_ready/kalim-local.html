@@ -1,0 +1,1097 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#07101e" />
+  <title>كَلِم — Let's Play!</title>
+  <style>
+    :root{
+      --bg:#07101e;
+      --panel:#10192e;
+      --panel2:#15213c;
+      --panel3:#0c162b;
+      --line:#2a395f;
+      --text:#f4f7ff;
+      --muted:#9cadd6;
+      --accent:#8b5cf6;
+      --accent2:#09b7d4;
+      --gold:#f2c75c;
+      --danger:#ff7a84;
+      --success:#4ade80;
+      --shadow:0 18px 40px rgba(0,0,0,.34);
+      --safe-bottom:env(safe-area-inset-bottom, 0px);
+    }
+
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    html,body{margin:0;min-height:100%;background:linear-gradient(180deg,#07101e,#0a1427 65%,#07101e);color:var(--text)}
+    body{font-family:Tahoma,Arial,sans-serif;overflow-x:hidden}
+    button,input{font:inherit}
+    button{touch-action:manipulation}
+    .hidden{display:none!important}
+
+    .app{
+      width:min(1200px,100%);
+      min-height:100dvh;
+      margin:auto;
+      padding:8px 8px calc(160px + var(--safe-bottom));
+    }
+
+    .topbar{
+      position:sticky;top:0;z-index:20;
+      display:flex;align-items:center;justify-content:space-between;gap:8px;
+      background:rgba(10,18,35,.92);
+      backdrop-filter:blur(14px);
+      border:1px solid var(--line);
+      border-radius:16px;
+      padding:9px 11px;
+      margin-bottom:8px;
+      box-shadow:0 8px 24px rgba(0,0,0,.16);
+    }
+    .brand{display:flex;align-items:center;gap:8px;font-size:20px;font-weight:900}
+    .brand-logo{
+      width:34px;height:34px;border-radius:10px;
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      display:grid;place-items:center;font-weight:900
+    }
+    .room{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)}
+    .room code{color:#fff;background:var(--panel3);border:1px solid var(--line);padding:4px 7px;border-radius:8px}
+
+    .opponents-wrap{position:relative}
+    .opponents{
+      display:flex;gap:7px;overflow-x:auto;
+      padding:2px 1px 8px;
+      scroll-snap-type:x proximity;
+      scrollbar-width:none;
+    }
+    .opponents::-webkit-scrollbar{display:none}
+    .opp{
+      flex:0 0 150px;
+      min-width:150px;
+      background:var(--panel);
+      border:1px solid var(--line);
+      border-radius:13px;
+      padding:7px 8px;
+      scroll-snap-align:start;
+      transition:.15s ease;
+    }
+    .opp.active{
+      outline:2px solid var(--gold);
+      box-shadow:0 0 0 4px rgba(242,199,92,.11);
+    }
+    .opp-name{font-size:13px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .opp-meta{font-size:10px;color:var(--muted);margin-top:2px}
+    .opp-cards{
+      display:flex;gap:3px;margin-top:6px;
+      overflow-x:auto;overflow-y:hidden;
+      padding-bottom:3px;
+      max-width:100%;
+      scroll-snap-type:x proximity;
+      scrollbar-width:none;
+      -webkit-overflow-scrolling:touch;
+      touch-action:pan-x;
+    }
+    .opp-cards::-webkit-scrollbar{display:none}
+    .mini-card{
+      width:21px;height:29px;flex:0 0 21px;
+      border-radius:6px;
+      background:linear-gradient(180deg,#faf6ee,#efe6d5);
+      border:1px solid #d9c6a5;
+      color:#182034;
+      display:grid;place-items:center;
+      position:relative;
+      font-weight:900;font-size:13px;
+      box-shadow:0 3px 7px rgba(0,0,0,.14);
+      scroll-snap-align:start;
+    }
+    .mini-card small{position:absolute;top:1px;left:2px;font-size:6px;color:#9a5338;font-weight:900}
+
+    .game{
+      background:linear-gradient(180deg,rgba(15,24,45,.98),rgba(10,18,35,.98));
+      border:1px solid var(--line);
+      border-radius:20px;
+      padding:9px;
+      box-shadow:var(--shadow);
+      min-height:430px;
+    }
+    .notice{
+      min-height:34px;
+      display:flex;align-items:center;justify-content:center;
+      text-align:center;
+      font-size:11px;color:#d2dcf7;
+      background:var(--panel3);
+      border:1px solid var(--line);
+      border-radius:11px;
+      padding:6px 8px;
+      margin-bottom:8px;
+    }
+    .table{
+      min-height:350px;
+      padding:14px 10px;
+      background:radial-gradient(circle at 50% 32%,#173b5c 0%,#133250 48%,#0d2640 100%);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:24px;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      box-shadow:inset 0 0 0 7px rgba(255,255,255,.035);
+    }
+    .turn{
+      background:rgba(7,12,24,.72);
+      border:1px solid var(--line);
+      border-radius:999px;
+      padding:6px 12px;
+      font-size:12px;font-weight:900;
+    }
+    .timer{
+      font-size:54px;font-weight:900;line-height:1;
+      margin:10px 0 12px;
+      font-variant-numeric:tabular-nums;
+      text-shadow:0 3px 15px rgba(0,0,0,.34);
+    }
+    .timer.low{color:#ffe0a6}
+    .timer.ended{color:#ffd0d4}
+
+    .word{
+      display:flex;direction:rtl;
+      gap:9px;justify-content:center;align-items:center;
+      margin-bottom:20px;
+    }
+    .slot{
+      width:70px;height:96px;
+      display:grid;place-items:center;
+      position:relative;
+      border-radius:14px;
+    }
+    .slot.target{
+      outline:2px dashed var(--accent2);
+      outline-offset:4px;
+    }
+    .slot-stack{
+      position:absolute;right:0;left:0;bottom:-14px;
+      text-align:center;font-size:8px;color:#cfdbf8
+    }
+
+    .card{
+      width:60px;height:82px;
+      border-radius:12px;
+      background:linear-gradient(180deg,#fbf7ef,#efe6d6);
+      border:1px solid #dcc8aa;
+      color:#192033;
+      position:relative;
+      display:grid;place-items:center;
+      font-size:35px;font-weight:900;
+      box-shadow:0 6px 14px rgba(0,0,0,.22);
+      user-select:none;
+      cursor:pointer;
+      transition:.12s ease;
+    }
+    .card:active{transform:scale(.97)}
+    .card.selected{
+      outline:3px solid var(--accent);
+      transform:translateY(-2px);
+    }
+    .card.star{
+      background:linear-gradient(180deg,#fff1aa,#f3d66c);
+      border-color:#daba4d;
+    }
+    .corner{
+      position:absolute;top:5px;left:7px;
+      font-size:16px;line-height:1;
+      font-weight:900;color:#9f5336;
+    }
+
+    .controls{
+      width:100%;max-width:420px;
+      display:grid;
+      grid-template-columns:1fr 1.15fr 1fr 1fr;
+      gap:6px;
+    }
+    .btn{
+      min-height:44px;
+      border:1px solid var(--line);
+      border-radius:12px;
+      background:#121d35;
+      color:var(--text);
+      font-size:12px;font-weight:900;
+      padding:7px 5px;
+      box-shadow:0 5px 13px rgba(0,0,0,.16);
+      cursor:pointer;
+    }
+    .btn.bell{
+      background:linear-gradient(135deg,#f4ca5c,#e9b747);
+      color:#3b2a03;
+      font-size:20px;
+    }
+    .btn.draw{background:linear-gradient(135deg,#292653,#1e1b45)}
+    .btn:disabled{opacity:.45;cursor:not-allowed}
+
+
+    .turn-change-btn{
+      width:100%;max-width:420px;
+      min-height:38px;
+      margin-top:8px;
+      border:1px solid var(--line);
+      border-radius:11px;
+      background:rgba(12,22,43,.82);
+      color:#cfd9f7;
+      font-size:11px;
+      font-weight:900;
+      cursor:pointer;
+    }
+    .turn-change-btn:active{transform:scale(.99)}
+
+    .turn-picker-backdrop{
+      position:fixed;inset:0;z-index:55;
+      background:rgba(3,7,14,.70);
+      backdrop-filter:blur(5px);
+      display:none;
+      align-items:flex-end;
+      justify-content:center;
+      padding:12px;
+    }
+    .turn-picker-backdrop.open{display:flex}
+    .turn-picker{
+      width:min(520px,100%);
+      background:linear-gradient(180deg,#121d35,#0d1629);
+      border:1px solid var(--line);
+      border-radius:20px;
+      box-shadow:var(--shadow);
+      padding:14px;
+      margin-bottom:calc(8px + var(--safe-bottom));
+    }
+    .turn-picker-head{
+      display:flex;align-items:center;justify-content:space-between;
+      gap:8px;margin-bottom:10px;
+    }
+    .turn-picker-title{font-size:15px;font-weight:900}
+    .turn-picker-sub{font-size:10px;color:var(--muted);margin-top:2px}
+    .turn-picker-close{
+      width:34px;height:34px;
+      border:none;border-radius:10px;
+      background:var(--panel3);color:#fff;
+      font-size:20px;cursor:pointer;
+    }
+    .turn-picker-list{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:8px;
+    }
+    .turn-player-btn{
+      min-height:48px;
+      border:1px solid var(--line);
+      border-radius:12px;
+      background:#15213d;
+      color:var(--text);
+      text-align:right;
+      padding:9px 10px;
+      cursor:pointer;
+      font-weight:900;
+    }
+    .turn-player-btn.current{
+      outline:2px solid var(--gold);
+      background:#1b2947;
+    }
+    .turn-player-btn small{
+      display:block;
+      color:var(--muted);
+      font-size:9px;
+      font-weight:400;
+      margin-top:2px;
+    }
+
+    .myhand{
+      position:fixed;
+      right:8px;left:8px;bottom:8px;z-index:25;
+      background:rgba(15,24,45,.97);
+      backdrop-filter:blur(14px);
+      border:1px solid var(--line);
+      border-radius:18px;
+      box-shadow:0 -12px 34px rgba(0,0,0,.40);
+      padding:9px 9px calc(9px + var(--safe-bottom));
+    }
+    .myhead{
+      display:flex;justify-content:space-between;align-items:flex-start;gap:8px;
+      margin-bottom:7px;
+    }
+    .mytitle{font-size:14px;font-weight:900}
+    .myhint{font-size:9px;color:var(--muted);margin-top:2px}
+    .mycount{font-size:10px;color:var(--muted);white-space:nowrap}
+    .mycards{
+      display:flex;gap:6px;
+      overflow-x:auto;
+      padding:2px 1px 4px;
+      scroll-snap-type:x proximity;
+      scrollbar-width:none;
+    }
+    .mycards::-webkit-scrollbar{display:none}
+    .mycards .card{
+      flex:0 0 51px;
+      width:51px;height:71px;
+      font-size:30px;
+      scroll-snap-align:start;
+    }
+    .mycards .corner{font-size:15px;top:4px;left:6px}
+
+    .chat-toggle{
+      position:fixed;
+      left:10px;
+      bottom:calc(150px + var(--safe-bottom));
+      z-index:30;
+      width:46px;height:46px;
+      border:none;border-radius:14px;
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      color:#fff;font-size:20px;
+      box-shadow:var(--shadow);
+      cursor:pointer;
+    }
+    .chat-drawer{
+      position:fixed;top:0;right:0;z-index:40;
+      width:min(88vw,340px);height:100dvh;
+      display:flex;flex-direction:column;
+      background:linear-gradient(180deg,#10192e,#0d1427);
+      border-left:1px solid var(--line);
+      box-shadow:var(--shadow);
+      transform:translateX(100%);
+      transition:.22s ease;
+    }
+    .chat-drawer.open{transform:translateX(0)}
+    .chat-head{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:13px;border-bottom:1px solid var(--line);
+    }
+    .chat-close{background:none;border:none;color:#fff;font-size:26px;cursor:pointer}
+    .messages{flex:1;overflow:auto;padding:10px;display:flex;flex-direction:column;gap:7px}
+    .msg{background:#1a2340;border:1px solid #26345b;border-radius:10px;padding:8px 9px;font-size:13px}
+    .msg.me{background:#14303b;border-color:#1e5263}
+    .chatbox{
+      display:flex;gap:6px;
+      padding:9px 9px calc(9px + var(--safe-bottom));
+      border-top:1px solid var(--line)
+    }
+    .chatbox input{
+      flex:1;min-width:0;
+      background:var(--panel3);color:#fff;
+      border:1px solid var(--line);
+      border-radius:10px;padding:9px
+    }
+    .send{
+      border:none;border-radius:10px;
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      color:#fff;padding:0 12px;font-weight:900;cursor:pointer
+    }
+
+    .start-modal{
+      position:fixed;inset:0;z-index:60;
+      background:rgba(4,8,16,.86);
+      backdrop-filter:blur(12px);
+      display:grid;place-items:center;
+      padding:18px;
+    }
+    .start-card{
+      width:min(420px,100%);
+      background:linear-gradient(180deg,#111b33,#0d162a);
+      border:1px solid var(--line);
+      border-radius:22px;padding:18px;
+      box-shadow:var(--shadow)
+    }
+    .start-title{font-size:28px;font-weight:900;margin-bottom:4px}
+    .start-sub{font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:14px}
+    .start-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .field{display:flex;flex-direction:column;gap:5px;margin-bottom:10px}
+    .field label{font-size:11px;color:var(--muted)}
+    .field input{
+      width:100%;
+      background:var(--panel3);
+      color:#fff;border:1px solid var(--line);
+      border-radius:11px;padding:10px
+    }
+    .start-btn{
+      width:100%;min-height:46px;
+      border:none;border-radius:13px;
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      color:#fff;font-weight:900;font-size:15px;cursor:pointer
+    }
+
+    @media(min-width:760px){
+      .app{padding:14px 14px 210px}
+      .topbar{padding:12px 15px;border-radius:20px}
+      .brand{font-size:24px}.brand-logo{width:42px;height:42px}
+      .opp{min-width:150px;padding:9px}
+      .opp-name{font-size:15px}.opp-meta{font-size:11px}
+      .mini-card{width:25px;height:34px;flex-basis:25px;font-size:16px}
+      .game{padding:14px;min-height:570px;border-radius:26px}
+      .notice{font-size:13px}
+      .table{min-height:485px;border-radius:32px}
+      .turn{font-size:14px}
+      .timer{font-size:70px}
+      .word{gap:14px}
+      .slot{width:88px;height:118px}
+      .card{width:72px;height:100px;font-size:43px}
+      .corner{font-size:19px}
+      .controls{gap:9px}
+      .btn{min-height:48px;font-size:14px}
+  
+    .turn-change-btn{
+      width:100%;max-width:420px;
+      min-height:38px;
+      margin-top:8px;
+      border:1px solid var(--line);
+      border-radius:11px;
+      background:rgba(12,22,43,.82);
+      color:#cfd9f7;
+      font-size:11px;
+      font-weight:900;
+      cursor:pointer;
+    }
+    .turn-change-btn:active{transform:scale(.99)}
+
+    .turn-picker-backdrop{
+      position:fixed;inset:0;z-index:55;
+      background:rgba(3,7,14,.70);
+      backdrop-filter:blur(5px);
+      display:none;
+      align-items:flex-end;
+      justify-content:center;
+      padding:12px;
+    }
+    .turn-picker-backdrop.open{display:flex}
+    .turn-picker{
+      width:min(520px,100%);
+      background:linear-gradient(180deg,#121d35,#0d1629);
+      border:1px solid var(--line);
+      border-radius:20px;
+      box-shadow:var(--shadow);
+      padding:14px;
+      margin-bottom:calc(8px + var(--safe-bottom));
+    }
+    .turn-picker-head{
+      display:flex;align-items:center;justify-content:space-between;
+      gap:8px;margin-bottom:10px;
+    }
+    .turn-picker-title{font-size:15px;font-weight:900}
+    .turn-picker-sub{font-size:10px;color:var(--muted);margin-top:2px}
+    .turn-picker-close{
+      width:34px;height:34px;
+      border:none;border-radius:10px;
+      background:var(--panel3);color:#fff;
+      font-size:20px;cursor:pointer;
+    }
+    .turn-picker-list{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:8px;
+    }
+    .turn-player-btn{
+      min-height:48px;
+      border:1px solid var(--line);
+      border-radius:12px;
+      background:#15213d;
+      color:var(--text);
+      text-align:right;
+      padding:9px 10px;
+      cursor:pointer;
+      font-weight:900;
+    }
+    .turn-player-btn.current{
+      outline:2px solid var(--gold);
+      background:#1b2947;
+    }
+    .turn-player-btn small{
+      display:block;
+      color:var(--muted);
+      font-size:9px;
+      font-weight:400;
+      margin-top:2px;
+    }
+
+    .myhand{
+        left:50%;right:auto;
+        transform:translateX(-50%);
+        width:min(980px,calc(100vw - 28px));
+        padding:12px
+      }
+      .mytitle{font-size:17px}.myhint{font-size:11px}.mycount{font-size:12px}
+      .mycards{gap:8px}
+      .mycards .card{flex-basis:59px;width:59px;height:83px;font-size:36px}
+      .chat-toggle{bottom:188px}
+    }
+  
+    .launcher-back{
+      position:fixed;left:10px;top:10px;z-index:90;
+      text-decoration:none;color:#fff;background:#111b33;
+      border:1px solid var(--line);border-radius:11px;
+      padding:8px 10px;font-size:11px;font-weight:900;
+      box-shadow:0 8px 22px rgba(0,0,0,.25)
+    }
+    @media(max-width:520px){.launcher-back{top:auto;bottom:calc(10px + var(--safe-bottom));left:10px}}
+    </style>
+    
+</head>
+
+<body><a class="launcher-back" href="local.html">← الألعاب</a>
+  <div class="start-modal" id="startModal">
+    <div class="start-card">
+      <div class="start-title">كَلِم</div>
+      <div class="start-sub">
+        نسخة تجريبية محلية للجوال. اختاري عدد اللاعبين وابدئي جولة جديدة.
+        كل جولة تعيد خلط وتوزيع البطاقات عشوائيًا. في هذه النسخة المحلية تنتقل "اليد" تلقائيًا مع صاحب الدور حتى تقدري تختبري كل اللاعبين على جهاز واحد.
+      </div>
+
+      <div class="start-row">
+        <div class="field">
+          <label>اسمك</label>
+          <input id="playerNameInput" value="غيداء" maxlength="12" />
+        </div>
+        <div class="field">
+          <label>عدد اللاعبين</label>
+          <input id="playerCountInput" type="number" min="2" max="8" value="6" />
+        </div>
+      </div>
+
+      <button class="start-btn" id="startBtn">ابدأ الجولة</button>
+    </div>
+  </div>
+
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-logo">ك</div>
+        <span>كَلِم</span>
+      </div>
+      <div class="room">الغرفة <code id="roomCode">KLM-583</code></div>
+    </header>
+
+    <div class="opponents-wrap">
+      <section class="opponents" id="opponents"></section>
+    </div>
+
+    <main class="game">
+      <div class="notice" id="notice">اختاري بطاقة من يدك. ضغطتان سريعًا على البطاقة لتبديل الوجه.</div>
+
+      <section class="table">
+        <div class="turn" id="turnLabel">دور غيداء</div>
+        <div class="timer" id="timer">14.0</div>
+
+        <div class="word" id="word"></div>
+
+        <div class="controls">
+          <button class="btn" id="restartBtn">↻ إعادة</button>
+          <button class="btn bell" id="bellBtn">🔔</button>
+          <button class="btn" id="pauseBtn">⏸ إيقاف</button>
+          <button class="btn draw" id="drawBtn">🃏 سحب</button>
+        </div>
+        <button class="turn-change-btn" id="turnChangeBtn">↩ تغيير / إرجاع الدور</button>
+      </section>
+    </main>
+  </div>
+
+  <section class="myhand">
+    <div class="myhead">
+      <div>
+        <div class="mytitle">يدي — <span id="myName">غيداء</span></div>
+        <div class="myhint">اسحبي يمين/يسار. ضغطة للاختيار، ضغطتان لتبديل الوجه.</div>
+      </div>
+      <div class="mycount"><b id="myCount">10</b> بطاقات</div>
+    </div>
+    <div class="mycards" id="mycards"></div>
+  </section>
+
+
+  <div class="turn-picker-backdrop" id="turnPickerBackdrop">
+    <div class="turn-picker">
+      <div class="turn-picker-head">
+        <div>
+          <div class="turn-picker-title">تغيير / إرجاع الدور</div>
+          <div class="turn-picker-sub">اختاري أي لاعب وسيبدأ له وقت جديد من 14 ثانية.</div>
+        </div>
+        <button class="turn-picker-close" id="turnPickerClose">×</button>
+      </div>
+      <div class="turn-picker-list" id="turnPickerList"></div>
+    </div>
+  </div>
+
+  <button class="chat-toggle" id="chatToggle" aria-label="فتح الشات">💬</button>
+
+  <aside class="chat-drawer" id="chatDrawer">
+    <div class="chat-head">
+      <b>شات الغرفة</b>
+      <button class="chat-close" id="chatClose" aria-label="إغلاق الشات">×</button>
+    </div>
+
+    <div class="messages" id="messages">
+      <div class="msg">مودة: جاهزين؟ 👀</div>
+      <div class="msg me">غيداء: يلا نبدأ 😂</div>
+    </div>
+
+    <form class="chatbox" id="chatForm">
+      <input id="chatInput" placeholder="اكتبي رسالة..." autocomplete="off" />
+      <button class="send">إرسال</button>
+    </form>
+  </aside>
+
+<script>
+(() => {
+  const ARABIC_LETTERS = ["ا","ب","ت","ث","ج","ح","خ","د","ذ","ر","ز","س","ش","ص","ض","ط","ظ","ع","غ","ف","ق","ك","ل","م","ن","ه","و","ي"];
+
+  // Repeated common letters make the deck feel random while still playable.
+  const BALANCED_POOL = [
+    "ا","ا","ا","ب","ب","ت","ت","ج","ح","د","د","ر","ر","ر","س","س","ش",
+    "ع","ع","ف","ق","ك","ك","ل","ل","ل","م","م","م","ن","ن","ن","ه","ه","و","و","ي","ي",
+    "ث","خ","ذ","ز","ص","ض","ط","ظ","غ"
+  ];
+
+  const START_WORDS = [
+    ["ك","ت","ب"],["ل","ع","ب"],["ق","ل","م"],["ب","ي","ت"],["ن","ه","ر"],["و","ر","د"],
+    ["ع","ل","م"],["س","م","ك"],["ق","م","ر"],["ش","م","س"],["ح","ل","م"],["ب","ح","ر"],
+    ["ط","ي","ر"],["ج","م","ل"],["ل","ي","ل"],["ن","و","ر"],["ف","ر","ح"],["ع","م","ر"]
+  ];
+
+  const DEFAULT_NAMES = ["غيداء","مودة","سارة","ريم","لولوة","نور","هيا","دانا"];
+
+  let playerNames = [];
+  let hands = [];
+  let viewerIndex = 0;
+  let currentPlayer = 0;
+  let selectedIndex = null;
+
+  let timeLeft = 14.0;
+  let running = false;
+  let bellStopped = false;
+  let timerHandle = null;
+
+  let stacks = [];
+  let drawDeck = [];
+
+  const els = {
+    startModal: document.getElementById("startModal"),
+    startBtn: document.getElementById("startBtn"),
+    playerNameInput: document.getElementById("playerNameInput"),
+    playerCountInput: document.getElementById("playerCountInput"),
+    opponents: document.getElementById("opponents"),
+    mycards: document.getElementById("mycards"),
+    myName: document.getElementById("myName"),
+    myCount: document.getElementById("myCount"),
+    word: document.getElementById("word"),
+    notice: document.getElementById("notice"),
+    timer: document.getElementById("timer"),
+    turnLabel: document.getElementById("turnLabel"),
+    pauseBtn: document.getElementById("pauseBtn"),
+    bellBtn: document.getElementById("bellBtn"),
+    restartBtn: document.getElementById("restartBtn"),
+    drawBtn: document.getElementById("drawBtn"),
+    chatToggle: document.getElementById("chatToggle"),
+    chatDrawer: document.getElementById("chatDrawer"),
+    chatClose: document.getElementById("chatClose"),
+    chatForm: document.getElementById("chatForm"),
+    chatInput: document.getElementById("chatInput"),
+    messages: document.getElementById("messages"),
+    roomCode: document.getElementById("roomCode"),
+    turnChangeBtn: document.getElementById("turnChangeBtn"),
+    turnPickerBackdrop: document.getElementById("turnPickerBackdrop"),
+    turnPickerClose: document.getElementById("turnPickerClose"),
+    turnPickerList: document.getElementById("turnPickerList"),
+  };
+
+  function randInt(max){ return Math.floor(Math.random() * max); }
+
+  function shuffle(arr){
+    for(let i = arr.length - 1; i > 0; i--){
+      const j = randInt(i + 1);
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function randomLetter(){
+    return BALANCED_POOL[randInt(BALANCED_POOL.length)];
+  }
+
+  function makeCard(){
+    // Small chance of star on one face; avoid star-star.
+    const starChance = Math.random() < 0.045;
+    let a = starChance ? "★" : randomLetter();
+    let b = randomLetter();
+
+    while(b === a) b = randomLetter();
+
+    if(Math.random() < 0.5){
+      return {front:a, back:b, useBack:false};
+    }
+    return {front:b, back:a, useBack:false};
+  }
+
+  function refillDeckIfNeeded(){
+    if(drawDeck.length >= 60) return;
+    const batch = [];
+    for(let i=0;i<180;i++) batch.push(makeCard());
+    drawDeck.push(...shuffle(batch));
+  }
+
+  function buildInitialDeck(playerCount){
+    drawDeck = [];
+    const need = playerCount * 10 + 180;
+    for(let i=0;i<need;i++) drawDeck.push(makeCard());
+    shuffle(drawDeck);
+  }
+
+  function drawCard(){
+    refillDeckIfNeeded();
+    return drawDeck.pop();
+  }
+
+  function activeFace(card){ return card.useBack ? card.back : card.front; }
+  function inactiveFace(card){ return card.useBack ? card.front : card.back; }
+
+  function toast(text){
+    els.notice.textContent = text;
+  }
+
+  function gameCardHTML(card, selected=false){
+    const face = activeFace(card);
+    const other = inactiveFace(card);
+    return `
+      <div class="card ${selected ? "selected" : ""} ${face === "★" ? "star" : ""}">
+        <div class="corner">${other}</div>
+        ${face}
+      </div>
+    `;
+  }
+
+  function miniCardHTML(card){
+    return `<div class="mini-card"><small>${inactiveFace(card)}</small>${activeFace(card)}</div>`;
+  }
+
+  function renderOpponents(){
+    els.opponents.innerHTML = "";
+
+    playerNames.forEach((name, i) => {
+      if(i === viewerIndex) return;
+
+      const item = document.createElement("div");
+      item.className = "opp" + (i === currentPlayer ? " active" : "");
+      item.dataset.playerIndex = String(i);
+
+      const shown = hands[i].map(miniCardHTML).join("");
+
+      item.innerHTML = `
+        <div class="opp-name">${name}</div>
+        <div class="opp-meta">${i === currentPlayer ? "دوره الآن" : "بانتظار الدور"} · ${hands[i].length} بطاقات</div>
+        <div class="opp-cards" aria-label="بطاقات ${name}">${shown}</div>
+      `;
+      els.opponents.appendChild(item);
+    });
+
+    // Keep current player visible in the horizontal strip.
+    requestAnimationFrame(() => {
+      const active = els.opponents.querySelector(".opp.active");
+      if(active) active.scrollIntoView({behavior:"smooth", inline:"center", block:"nearest"});
+    });
+  }
+
+  function attachCardTap(el, index){
+    let lastTap = 0;
+    let singleTimer = null;
+
+    const onTap = () => {
+      if(viewerIndex !== currentPlayer){
+        toast(`الدور الآن لـ ${playerNames[currentPlayer]} — لا يمكن اللعب من يد ${playerNames[viewerIndex]}.`);
+        return;
+      }
+      const now = Date.now();
+
+      if(now - lastTap < 320){
+        lastTap = 0;
+        clearTimeout(singleTimer);
+
+        const card = hands[viewerIndex][index];
+        if(!card) return;
+
+        card.useBack = !card.useBack;
+        selectedIndex = index;
+        toast(`تم تبديل وجه البطاقة — الحرف المختار الآن "${activeFace(card)}"`);
+        renderAll();
+        return;
+      }
+
+      lastTap = now;
+      singleTimer = setTimeout(() => {
+        selectedIndex = index;
+        const card = hands[viewerIndex][index];
+        if(card) toast(`اخترتِ حرف "${activeFace(card)}" — اضغطي على أحد أحرف الوسط لاستبداله`);
+        renderAll();
+      }, 260);
+    };
+
+    el.addEventListener("click", onTap);
+  }
+
+  function renderMyHand(){
+    els.myName.textContent = playerNames[viewerIndex] || "أنت";
+    els.myCount.textContent = hands[viewerIndex]?.length ?? 0;
+    els.mycards.innerHTML = "";
+
+    (hands[viewerIndex] || []).forEach((card, index) => {
+      const wrap = document.createElement("div");
+      wrap.innerHTML = gameCardHTML(card, selectedIndex === index);
+      const el = wrap.firstElementChild;
+      attachCardTap(el, index);
+      els.mycards.appendChild(el);
+    });
+  }
+
+  function renderWord(){
+    els.word.innerHTML = "";
+
+    stacks.forEach((stack, slotIndex) => {
+      const top = stack[stack.length - 1];
+
+      const slot = document.createElement("div");
+      slot.className = "slot" + (selectedIndex !== null ? " target" : "");
+
+      const shown = {front:top.front, back:top.back, useBack:false};
+
+      const wrap = document.createElement("div");
+      wrap.innerHTML = gameCardHTML(shown, false);
+      const cardEl = wrap.firstElementChild;
+
+      cardEl.addEventListener("click", () => {
+        if(viewerIndex !== currentPlayer && selectedIndex !== null){
+          toast(`فقط ${playerNames[currentPlayer]} يقدر ينزل بطاقة الآن.`);
+          selectedIndex = null;
+          renderAll();
+          return;
+        }
+        if(selectedIndex === null){
+          if(stack.length > 1){
+            const removed = stack.pop();
+            const owner = removed.owner ?? viewerIndex;
+            hands[owner].push({front:removed.front, back:removed.back, useBack:false});
+            toast(`أُعيد حرف "${removed.front}" إلى يد ${playerNames[owner]}`);
+            renderAll();
+          }else{
+            toast("هذه بطاقة البداية الأساسية.");
+          }
+          return;
+        }
+
+        const chosen = hands[viewerIndex][selectedIndex];
+        if(!chosen) return;
+
+        const front = activeFace(chosen);
+        const back = inactiveFace(chosen);
+
+        hands[viewerIndex].splice(selectedIndex, 1);
+        stack.push({front, back, owner:viewerIndex});
+        selectedIndex = null;
+
+        toast(`تم وضع حرف "${front}" بدل الحرف الموجود في هذه الخانة.`);
+        renderAll();
+      });
+
+      slot.appendChild(cardEl);
+
+      const depth = document.createElement("div");
+      depth.className = "slot-stack";
+      depth.textContent = stack.length > 1 ? `فوق ${stack.length - 1}` : "";
+      slot.appendChild(depth);
+
+      els.word.appendChild(slot);
+    });
+  }
+
+  function renderTimer(){
+    els.timer.textContent = timeLeft.toFixed(1);
+    els.timer.classList.toggle("low", timeLeft > 0 && timeLeft <= 3);
+    els.timer.classList.toggle("ended", !running && timeLeft <= 0);
+  }
+
+  function renderAll(){
+    els.turnLabel.textContent = "دور " + playerNames[currentPlayer];
+    els.drawBtn.disabled = viewerIndex !== currentPlayer;
+    renderOpponents();
+    renderMyHand();
+    renderWord();
+    renderTimer();
+  }
+
+  function softBeep(){
+    try{
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = "sine";
+      osc.frequency.value = 680;
+
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.085, ctx.currentTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.13);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.14);
+    }catch(e){}
+  }
+
+  function startTimerLoop(){
+    if(timerHandle) clearInterval(timerHandle);
+
+    timerHandle = setInterval(() => {
+      if(!running) return;
+
+      timeLeft = Math.max(0, +(timeLeft - 0.1).toFixed(1));
+      renderTimer();
+
+      if(timeLeft <= 0){
+        running = false;
+        els.pauseBtn.textContent = "▶ استكمال";
+        softBeep();
+        toast(`انتهى وقت ${playerNames[currentPlayer]} — الوقت توقف فقط.`);
+        renderTimer();
+      }
+    }, 100);
+  }
+
+  function setNewRound(){
+    const requested = Math.max(2, Math.min(8, Number(els.playerCountInput.value || 6)));
+    const myName = (els.playerNameInput.value || "غيداء").trim() || "غيداء";
+
+    playerNames = DEFAULT_NAMES.slice(0, requested);
+    playerNames[0] = myName;
+
+    viewerIndex = 0;
+    currentPlayer = 0;
+    selectedIndex = null;
+    timeLeft = 14.0;
+    running = true;
+    bellStopped = false;
+
+    buildInitialDeck(requested);
+
+    hands = Array.from({length:requested}, () => {
+      const hand = [];
+      for(let i=0;i<10;i++) hand.push(drawCard());
+      return hand;
+    });
+
+    const start = START_WORDS[randInt(START_WORDS.length)];
+    stacks = start.map(letter => [{
+      front:letter,
+      back:ARABIC_LETTERS[randInt(ARABIC_LETTERS.length)],
+      owner:null
+    }]);
+
+    els.roomCode.textContent = "KLM-" + String(100 + randInt(900));
+    els.pauseBtn.textContent = "⏸ إيقاف";
+    els.startModal.classList.add("hidden");
+
+    toast("بدأت الجولة. التوزيع والسحب عشوائيان.");
+    renderAll();
+  }
+
+  els.startBtn.addEventListener("click", setNewRound);
+
+  els.pauseBtn.addEventListener("click", () => {
+    running = !running;
+    els.pauseBtn.textContent = running ? "⏸ إيقاف" : "▶ استكمال";
+    toast(running ? "استُكمل الوقت." : "تم إيقاف الوقت.");
+    renderTimer();
+  });
+
+  els.restartBtn.addEventListener("click", () => {
+    timeLeft = 14.0;
+    running = true;
+    bellStopped = false;
+    els.pauseBtn.textContent = "⏸ إيقاف";
+    toast(`أُعيد وقت ${playerNames[currentPlayer]} إلى 14 ثانية.`);
+    renderTimer();
+  });
+
+  els.bellBtn.addEventListener("click", () => {
+    if(!bellStopped){
+      running = false;
+      bellStopped = true;
+      els.pauseBtn.textContent = "▶ استكمال";
+      toast(`${playerNames[currentPlayer]} أوقف وقته.`);
+    }else{
+      currentPlayer = (currentPlayer + 1) % playerNames.length;
+      viewerIndex = currentPlayer; // local pass-and-play simulation
+      timeLeft = 14.0;
+      running = true;
+      bellStopped = false;
+      selectedIndex = null;
+      els.pauseBtn.textContent = "⏸ إيقاف";
+      toast(`بدأ وقت ${playerNames[currentPlayer]}.`);
+    }
+    renderAll();
+  });
+
+  els.drawBtn.addEventListener("click", () => {
+    if(viewerIndex !== currentPlayer){
+      toast(`فقط ${playerNames[currentPlayer]} يقدر يسحب الآن.`);
+      return;
+    }
+    refillDeckIfNeeded();
+    hands[viewerIndex].push(drawCard());
+    toast("سحبتِ بطاقة جديدة.");
+    renderAll();
+  });
+
+
+  function openTurnPicker(){
+    els.turnPickerList.innerHTML = "";
+
+    playerNames.forEach((name, index) => {
+      const btn = document.createElement("button");
+      btn.className = "turn-player-btn" + (index === currentPlayer ? " current" : "");
+      btn.innerHTML = `${name}<small>${index === currentPlayer ? "الدور الحالي" : "إرجاع الدور لهذا اللاعب"}</small>`;
+
+      btn.addEventListener("click", () => {
+        currentPlayer = index;
+        viewerIndex = index; // local pass-and-play simulation
+        selectedIndex = null;
+        timeLeft = 14.0;
+        running = true;
+        bellStopped = false;
+        els.pauseBtn.textContent = "⏸ إيقاف";
+        els.turnPickerBackdrop.classList.remove("open");
+        toast(`تم إرجاع الدور إلى ${playerNames[currentPlayer]} وبدأ له 14 ثانية.`);
+        renderAll();
+      });
+
+      els.turnPickerList.appendChild(btn);
+    });
+
+    els.turnPickerBackdrop.classList.add("open");
+  }
+
+  els.turnChangeBtn.addEventListener("click", openTurnPicker);
+  els.turnPickerClose.addEventListener("click", () => els.turnPickerBackdrop.classList.remove("open"));
+  els.turnPickerBackdrop.addEventListener("click", (e) => {
+    if(e.target === els.turnPickerBackdrop){
+      els.turnPickerBackdrop.classList.remove("open");
+    }
+  });
+
+  els.chatToggle.addEventListener("click", () => els.chatDrawer.classList.add("open"));
+  els.chatClose.addEventListener("click", () => els.chatDrawer.classList.remove("open"));
+
+  els.chatForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const text = els.chatInput.value.trim();
+    if(!text) return;
+
+    const msg = document.createElement("div");
+    msg.className = "msg me";
+    msg.textContent = `${playerNames[viewerIndex] || "أنت"}: ${text}`;
+    els.messages.appendChild(msg);
+    els.chatInput.value = "";
+    els.messages.scrollTop = els.messages.scrollHeight;
+  });
+
+  startTimerLoop();
+})();
+</script>
+</body>
+</html>

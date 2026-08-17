@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07101e">
+<title>Let's Play! — v8</title>
+<style>
+:root{
+ --bg:#07101e;--panel:#10192e;--panel2:#15213c;--panel3:#0b1428;--line:#2b395f;
+ --text:#f4f7ff;--muted:#9eadd2;--accent:#8b5cf6;--accent2:#0bb9d5;--gold:#f3c85d;
+ --green:#4ade80;--red:#ff7a84;--shadow:0 18px 40px rgba(0,0,0,.34);--safe:env(safe-area-inset-bottom,0px)
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%;background:linear-gradient(180deg,#07101e,#0a1427 65%,#07101e);color:var(--text);font-family:Tahoma,Arial,sans-serif}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer;touch-action:manipulation}
+.hidden{display:none!important}
+.app{width:min(1100px,100%);margin:auto;padding:10px 10px calc(18px + var(--safe))}
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:8px;background:rgba(10,18,35,.94);border:1px solid var(--line);border-radius:18px;padding:10px 12px;margin-bottom:10px;position:sticky;top:0;z-index:20;backdrop-filter:blur(12px)}
+.brand{display:flex;align-items:center;gap:9px;font-weight:900;font-size:20px}.logo{width:36px;height:36px;border-radius:11px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center}
+.back{border:1px solid var(--line);background:#111b33;color:#fff;border-radius:10px;padding:7px 10px;font-size:12px}
+.screen{display:none}.screen.active{display:block}
+.hero{padding:18px 4px 10px}.hero h1{font-size:30px;margin:0 0 6px}.hero p{margin:0;color:var(--muted);font-size:13px;line-height:1.7}
+.games{display:grid;grid-template-columns:1fr;gap:12px}.game-card,.section{background:linear-gradient(180deg,#111b33,#0d1629);border:1px solid var(--line);border-radius:22px;padding:16px;box-shadow:var(--shadow)}
+.game-card h2{font-size:23px;margin:0 0 5px}.game-card p{margin:0;color:var(--muted);font-size:12px;line-height:1.7}
+.actions,.toolbar,.mode-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.primary,.secondary,.danger,.vote-btn,.score-btn{border:none;border-radius:12px;padding:10px 14px;font-weight:900}
+.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}.secondary{background:#15213b;border:1px solid var(--line);color:#fff}.danger{background:#3a1b29;border:1px solid #6a2c41;color:#ffdce7}
+.section-title{font-weight:900;font-size:18px;margin-bottom:8px}.muted{color:var(--muted);font-size:12px;line-height:1.7}.small{font-size:10px;color:var(--muted)}
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:9px}.field label{font-size:11px;color:var(--muted)}
+.field input,.field select,.field textarea{width:100%;background:var(--panel3);color:#fff;border:1px solid var(--line);border-radius:11px;padding:10px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.notice{background:var(--panel3);border:1px solid var(--line);border-radius:11px;padding:8px 10px;color:#d6def6;font-size:11px;margin-top:8px}
+.mode-card{flex:1;min-width:130px;background:#111b33;border:1px solid var(--line);border-radius:16px;padding:14px;text-align:center}
+.mode-card.selected{outline:2px solid var(--gold)}.mode-card b{display:block;margin-bottom:4px}.mode-card span{font-size:10px;color:var(--muted)}
+.question-box{background:radial-gradient(circle at 50% 30%,#173b5c,#102947 58%,#0b2038);border:1px solid rgba(255,255,255,.08);border-radius:22px;padding:18px;text-align:center}
+.qcat{font-size:10px;color:#b8c8ef}.question{font-size:21px;font-weight:900;line-height:1.5;margin-top:5px}
+.scorebar{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.team{background:#111b33;border:1px solid var(--line);border-radius:14px;padding:10px;text-align:center}
+.team.active{outline:2px solid var(--gold)}.team b{display:block;font-size:22px}.team span{font-size:11px;color:var(--muted)}.hearts{display:flex;justify-content:center;gap:4px;margin-top:6px;font-size:18px;min-height:22px}.heart.off{opacity:.18;filter:grayscale(1)}.team.eliminated{opacity:.45}
+.score-adjust{display:flex;justify-content:center;gap:6px;margin-top:7px}.score-btn{padding:5px 9px;background:#0b1428;color:#fff;border:1px solid var(--line)}
+.answer-entry{display:flex;gap:7px;margin:10px 0}.answer-entry input{flex:1;min-width:0;background:var(--panel3);color:#fff;border:1px solid var(--line);border-radius:12px;padding:11px}
+.answers{display:grid;grid-template-columns:1fr;gap:7px}.answer-row{display:grid;grid-template-columns:38px 1fr;align-items:center;gap:7px;background:#111b33;border:1px solid var(--line);border-radius:13px;padding:8px}
+.answer-row.revealed{background:#153149;border-color:#235879}.rank{width:34px;height:34px;border-radius:10px;background:#0b1428;display:grid;place-items:center;font-weight:900}
+.answer-text{font-weight:800;font-size:14px}.hidden-answer{color:#6f7da6;letter-spacing:2px}.points{text-align:center;color:var(--gold);font-weight:900}
+.pass-card,.discussion,.result-card,.online-card{min-height:410px;background:radial-gradient(circle at 50% 25%,#173b5c,#102947 58%,#0b2038);border:1px solid rgba(255,255,255,.08);border-radius:24px;padding:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.pass-name{font-size:25px;font-weight:900}.secret-question{font-size:23px;font-weight:900;line-height:1.6;margin:16px 0}
+.answer-input{width:min(520px,100%);display:flex;gap:7px;margin-top:12px}.answer-input input{flex:1;min-width:0;background:var(--panel3);color:#fff;border:1px solid var(--line);border-radius:12px;padding:11px}
+.real-question{width:100%;background:#0d1b33;border:1px solid var(--line);border-radius:16px;padding:12px;margin-bottom:12px}.real-question small{color:var(--muted)}.real-question b{display:block;font-size:20px;line-height:1.5;margin-top:4px}
+.answer-list,.vote-list,.results-list{width:100%;display:grid;gap:7px}.person-answer,.vote-option,.result-row{background:#111b33;border:1px solid var(--line);border-radius:13px;padding:10px;text-align:right}
+.vote-option{color:#fff}.vote-option.selected{outline:2px solid var(--gold)}
+.vote-pass{min-height:390px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.reveal-name{font-size:30px;font-weight:900;color:var(--gold);margin:8px 0}.vote-count{color:var(--muted);font-size:11px}
+.score-table{width:100%;display:grid;gap:7px;margin-top:12px}.score-row{display:grid;grid-template-columns:1fr auto auto;gap:7px;align-items:center;background:#111b33;border:1px solid var(--line);border-radius:12px;padding:9px}.score-value{font-weight:900;color:var(--gold)}
+.online-box{width:min(520px,100%);display:grid;gap:8px}.online-box input{background:var(--panel3);color:#fff;border:1px solid var(--line);border-radius:11px;padding:10px}
+.badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#0b1428;border:1px solid var(--line);font-size:10px;color:#cdd8f5}
+@media(min-width:760px){.app{padding:16px}.games{grid-template-columns:1fr 1fr}.answers{grid-template-columns:1fr 1fr}.question{font-size:27px}.pass-card,.discussion,.result-card,.online-card{min-height:520px}}
+
+.host-panel-wrap{position:fixed;inset:0;z-index:80;background:rgba(2,6,14,.82);backdrop-filter:blur(8px);display:none;align-items:flex-end;justify-content:center;padding:10px}
+.host-panel-wrap.open{display:flex}
+.host-panel{width:min(680px,100%);max-height:88dvh;overflow:auto;background:linear-gradient(180deg,#121d35,#0d1629);border:1px solid var(--line);border-radius:22px;padding:14px;box-shadow:var(--shadow);margin-bottom:var(--safe)}
+.host-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
+.host-answer{width:100%;display:grid;grid-template-columns:40px 1fr auto;gap:8px;align-items:center;background:#111b33;border:1px solid var(--line);border-radius:13px;padding:9px;margin-bottom:7px;color:#fff;text-align:right}
+.host-answer.used{opacity:.45}
+.host-answer .ha-rank{width:34px;height:34px;border-radius:10px;background:#0b1428;display:grid;place-items:center;font-weight:900}
+.host-answer .ha-points{color:var(--gold);font-size:11px}.suggestion-box{background:#0d2438;border:1px solid #235879;border-radius:15px;padding:12px}.suggestion-box .user-answer{color:var(--muted);font-size:11px;margin-bottom:8px}.suggestion-match{font-size:17px;font-weight:900;margin:5px 0}
+
+
+.top-mode-row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px}
+.top-mode{flex:1;min-width:145px;background:#111b33;border:1px solid var(--line);border-radius:16px;padding:13px;color:#fff;text-align:center}
+.top-mode.selected{outline:2px solid var(--gold)}
+.top-mode b{display:block;margin-bottom:4px}.top-mode span{font-size:10px;color:var(--muted)}
+.host-prep{background:#0b1428;border:1px solid var(--line);border-radius:16px;padding:12px;margin:10px 0}
+.host-access{text-align:center;margin-top:10px}.host-code{font-size:28px;font-weight:900;letter-spacing:5px;color:var(--gold);margin:8px 0}
+#hostQr{width:190px;height:190px;background:#fff;border-radius:14px;padding:7px;margin:10px auto;display:grid;place-items:center}
+#hostQr img,#hostQr canvas{max-width:100%;height:auto!important}
+.host-countdown{font-size:11px;color:var(--muted);margin-top:6px}
+.mode-badge{display:inline-block;border:1px solid var(--line);background:#0b1428;border-radius:999px;padding:5px 9px;font-size:10px;color:#d8e0f7;margin-bottom:7px}
+
+
+@media(min-width:900px){.games{grid-template-columns:repeat(3,1fr)}}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+<div class="app">
+<header class="topbar">
+  <div class="brand"><div class="logo">ل</div><span>Let's Play!</span></div>
+  <button class="back hidden" id="backBtn">الرئيسية</button>
+</header>
+
+<section id="home" class="screen active">
+  <div class="hero">
+    <h1>اختاروا اللعبة 🎮</h1>
+    <p>ثلاث ألعاب في مكان واحد: كَلِم، Top 10، والأطرش في الزفة.</p>
+  </div>
+  <div class="games">
+    <article class="game-card">
+      <h2>Top 10</h2>
+      <p>الفريق يكتب الإجابة، والنظام يقترح أقرب تطابق للهوست. الهوست يؤكد قبل كشف المركز واحتساب النقاط.</p>
+      <div class="actions"><button class="primary" data-go="top10Setup">ابدأ</button></div>
+    </article>
+    <article class="game-card">
+      <h2>الأطرش في الزفة</h2>
+      <p>اختاروا محلي أو أونلاين. المحلي: نفس الجوال يتمرر، وكل لاعب يقرأ سؤاله ويكتب جوابه ثم يصوت سرًا.</p>
+      <div class="actions"><button class="primary" data-go="atrashSetup">ابدأ</button></div>
+    </article>
+    <article class="game-card">
+      <h2>كَلِم</h2>
+      <p>لعبة الحروف والكلمات: استبدل حرفًا واحدًا من الكلمة، واستخدم بطاقاتك بذكاء حتى تخلص يدك.</p>
+      <div class="actions"><button class="primary" onclick="location.href='kalim-local.html'">ابدأ</button></div>
+    </article>
+  </div>
+</section>
+
+<section id="top10Setup" class="screen">
+  <div class="section">
+    <div class="section-title">إعداد Top 10</div>
+    <div class="muted">اختاروا طريقة الحكم:</div>
+    <div class="top-mode-row">
+      <button class="top-mode selected" id="topAutoMode"><b>⚡ بدون هوست</b><span>مطابقة تلقائية بالقاموس والمرادفات</span></button>
+      <button class="top-mode" id="topHostMode"><b>🎛️ مع هوست</b><span>شاشة عامة + جهاز خاص للهوست</span></button>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>الفريق الأول</label><input id="teamAInput" value="الفريق أ"></div>
+      <div class="field"><label>الفريق الثاني</label><input id="teamBInput" value="الفريق ب"></div>
+    </div>
+    <div class="field"><label>عدد الجولات</label><input id="top10Rounds" type="number" min="1" max="50" value="10"></div>
+    <div id="hostPrep" class="host-prep hidden">
+      <b>تهيئة جهاز الهوست قبل Share Screen</b>
+      <div class="muted">اعرض رمز الدخول مؤقتًا، افتحه على جهاز الهوست، وبعدها أخفه قبل مشاركة الشاشة. في الربط النهائي بـFirebase سيكون الرابط One-time ويتقفل فور دخول الهوست.</div>
+      <button class="secondary" id="makeHostAccess" style="margin-top:8px">إنشاء QR مؤقت للهوست</button>
+      <div id="hostAccess" class="host-access hidden">
+        <div class="host-code" id="hostCode"></div>
+        <div id="hostQr"></div>
+        <div class="host-countdown" id="hostCountdown"></div>
+        <div class="toolbar" style="justify-content:center">
+          <a id="hostPrivateLink" class="primary" style="text-decoration:none" target="_blank">فتح لوحة الهوست</a>
+          <button class="secondary" id="hideHostAccess">إخفاء الآن</button>
+        </div>
+      </div>
+    </div>
+    <button class="primary" id="startTop10">ابدأ اللعبة</button>
+  </div>
+</section>
+
+<section id="top10Game" class="screen">
+  <div class="question-box"><div class="qcat" id="top10Cat"></div><div class="question" id="top10Question"></div></div>
+  <div class="scorebar">
+    <div class="team active" id="teamA">
+      <span id="teamAName">الفريق أ</span><b id="teamAScore">0</b><div class="hearts" id="teamAHearts"></div>
+      <div class="score-adjust"><button class="score-btn" data-team="A" data-delta="-1">−1</button><button class="score-btn" data-team="A" data-delta="1">+1</button></div>
+    </div>
+    <div class="team" id="teamB">
+      <span id="teamBName">الفريق ب</span><b id="teamBScore">0</b><div class="hearts" id="teamBHearts"></div>
+      <div class="score-adjust"><button class="score-btn" data-team="B" data-delta="-1">−1</button><button class="score-btn" data-team="B" data-delta="1">+1</button></div>
+    </div>
+  </div>
+  
+  <div class="mode-badge" id="topModeBadge"></div>
+  <div class="answer-entry">
+    <input id="top10AnswerInput" placeholder="اكتبوا إجابة الفريق الحالي...">
+    <button class="primary" id="submitTop10Answer">إرسال</button>
+  </div>
+  <div class="notice" id="top10Notice">بدون هوست: النظام يطابق تلقائيًا. مع هوست: الإجابة تذهب إلى جهاز الهوست الخاص للتأكيد.</div>
+
+  <div class="answers" id="top10Answers"></div>
+  <div class="toolbar"><button class="secondary" id="revealAllTop10">إظهار الكل</button><button class="primary" id="nextTop10">السؤال التالي</button></div>
+  <div class="small" id="top10Progress"></div>
+</section>
+
+<section id="atrashSetup" class="screen">
+  <div class="section">
+    <div class="section-title">الأطرش في الزفة</div>
+    <div class="muted">اختاروا طريقة اللعب أولًا:</div>
+    <div class="mode-row">
+      <button class="mode-card selected" id="localMode"><b>📱 محلي</b><span>نفس الجوال يتمرر بين اللاعبين</span></button>
+      <button class="mode-card" id="onlineMode"><b>🌐 أونلاين</b><span>كل لاعب من جواله — يحتاج Firebase</span></button>
+    </div>
+    <div id="localSetupFields">
+      <div class="field"><label>أسماء اللاعبين — كل اسم في سطر</label><textarea id="atrashPlayers" rows="7">غيداء
+مودة
+سارة
+ريم</textarea></div>
+      <div class="field"><label>عدد الجولات</label><input id="atrashRounds" type="number" min="1" max="50" value="10"></div>
+      <button class="primary" id="startAtrashLocal">ابدأ المحلي</button>
+    </div>
+    <div id="onlineSetupFields" class="hidden">
+      <div class="online-card" style="min-height:300px">
+        <div class="online-box">
+          <span class="badge">واجهة جاهزة — الربط الحقيقي لاحقًا</span>
+          <h2 style="margin:0">اللعب الأونلاين</h2>
+          <div class="muted">سيكون هنا: إنشاء غرفة / الانضمام بكود / كل لاعب من جواله / إرسال الإجابة / ظهور الإجابات / التصويت / النقاط. يحتاج ربط Firebase حتى يعمل بين أجهزة مختلفة.</div>
+          <button class="primary" id="createOnlineMock">معاينة شاشة إنشاء الغرفة</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="atrashLocalGame" class="screen">
+  <div id="answerPassStage" class="pass-card">
+    <div class="pass-name" id="passPlayer"></div>
+    <div class="muted">تأكد أن محد يشوف الشاشة غيرك</div>
+    <div id="secretArea"><button class="primary" id="showSecret">أظهر سؤالي</button></div>
+    <div id="answerArea" class="answer-input hidden"><input id="atrashAnswerInput" placeholder="اكتب جوابك..."><button class="primary" id="submitAtrashAnswer">إرسال</button></div>
+  </div>
+
+  <div id="discussionStage" class="discussion hidden">
+    <div class="real-question"><small>السؤال الحقيقي</small><b id="realQuestion"></b></div>
+    <div class="answer-list" id="allAnswers"></div>
+    <div class="muted" style="margin:12px 0">تناقشوا بينكم، وبعدها ابدأوا التصويت السري.</div>
+    <button class="primary" id="startVoting">ابدأ التصويت</button>
+  </div>
+
+  <div id="voteStage" class="section hidden">
+    <div class="vote-pass">
+      <div class="pass-name" id="votePlayer"></div>
+      <div class="muted">اختر الشخص الذي تعتقد أنه الأطرش ثم مرر الجوال.</div>
+      <div class="vote-list" id="voteList" style="margin:14px 0"></div>
+      <button class="primary" id="submitVote" disabled>تأكيد التصويت</button>
+    </div>
+  </div>
+
+  <div id="resultStage" class="result-card hidden">
+    <div class="muted">الأطرش في هذه الجولة هو:</div>
+    <div class="reveal-name" id="outsiderName"></div>
+    <div class="muted">سؤال الأطرش</div>
+    <div id="outsiderQuestion" style="font-size:18px;font-weight:900;margin:5px 0 12px"></div>
+    <div class="results-list" id="voteResults"></div>
+    <div class="notice" id="scoreRuleText"></div>
+    <div class="score-table" id="playerScores"></div>
+    <div class="toolbar"><button class="primary" id="nextAtrashRound">الجولة التالية</button></div>
+    <div class="small" id="atrashProgress"></div>
+  </div>
+</section>
+
+<section id="onlineMock" class="screen">
+  <div class="online-card">
+    <div class="online-box">
+      <span class="badge">Online flow prototype</span>
+      <h2 style="margin:0">غرفة الأطرش</h2>
+      <div class="grid2">
+        <button class="primary">إنشاء غرفة</button><button class="secondary">الانضمام بكود</button>
+      </div>
+      <input placeholder="اسم اللاعب">
+      <input placeholder="كود الغرفة">
+      <div class="notice">هذه الشاشة فقط لتثبيت التصميم. عند الربط، يتم اختيار الأطرش عشوائيًا من جديد مع كل سؤال. الربط بين الجوالات يحتاج Firebase.</div>
+    </div>
+  </div>
+</section>
+</div>
+
+<script>
+const BUILTIN_TOP10=[{"category": "يوميات", "question": "اذكر 10 أشياء غالبًا تكون في شنطة اليد أو الظهر", "answers": ["الجوال", "المحفظة", "المفاتيح", "الشاحن", "مناديل", "عطر", "سماعات", "ماء", "قلم", "نظارة"]}, {"category": "سفر", "question": "اذكر 10 أشياء مهمة غالبًا تُجهز قبل السفر", "answers": ["الجواز", "التذاكر", "حجز الفندق", "الملابس", "الشاحن", "الأدوية", "المال", "حقيبة السفر", "خطة الرحلة", "مستلزمات النظافة"]}, {"category": "بيت", "question": "اذكر 10 أشياء تجدها غالبًا في المطبخ", "answers": ["ثلاجة", "فرن", "ملاعق", "صحون", "أكواب", "قدور", "مقلاة", "سكين", "غلاية", "مناديل"]}, {"category": "تقنية", "question": "اذكر 10 تطبيقات أو أنواع تطبيقات يفتحها الناس يوميًا", "answers": ["واتساب", "يوتيوب", "تيك توك", "إنستغرام", "سناب شات", "البريد", "الخرائط", "المتصفح", "الموسيقى", "البنك"]}, {"category": "جامعة", "question": "اذكر 10 أشياء يحتاجها الطالب في يوم جامعي", "answers": ["جوال", "لابتوب", "شاحن", "دفتر", "قلم", "بطاقة جامعية", "ماء", "سماعات", "كتاب", "قهوة"]}, {"category": "مطاعم", "question": "اذكر 10 أشياء يفكر فيها الناس عند اختيار مطعم", "answers": ["الطعم", "السعر", "الموقع", "النظافة", "التقييم", "الخدمة", "تنوع المنيو", "الانتظار", "الجلسات", "مواقف السيارات"]}, {"category": "سيارة", "question": "اذكر 10 أشياء مفيدة وجودها في السيارة", "answers": ["شاحن", "ماء", "مناديل", "مظلة", "إطار احتياطي", "عدة إسعاف", "كابل تشغيل", "عطر", "حامل جوال", "أكياس"]}, {"category": "شتاء", "question": "اذكر 10 أشياء مرتبطة بالشتاء", "answers": ["مطر", "برد", "معطف", "مظلة", "قهوة", "بطانية", "مدفأة", "جوارب", "شوربة", "ضباب"]}, {"category": "صيف", "question": "اذكر 10 أشياء مرتبطة بالصيف", "answers": ["شمس", "مكيف", "بحر", "آيس كريم", "ماء", "نظارة شمسية", "واقي شمس", "سفر", "عصير", "ملابس خفيفة"]}, {"category": "أكل", "question": "اذكر 10 أطعمة شائعة على الفطور", "answers": ["بيض", "خبز", "جبن", "فول", "تميس", "كرواسون", "لبنة", "حبوب إفطار", "فواكه", "زبادي"]}, {"category": "مشروبات", "question": "اذكر 10 مشروبات شائعة في المقاهي", "answers": ["قهوة سوداء", "لاتيه", "كابتشينو", "إسبريسو", "شاي", "موكا", "شوكولاتة ساخنة", "ماتشا", "عصير", "ماء"]}, {"category": "ترفيه", "question": "اذكر 10 أشياء ممكن تسويها في عطلة نهاية الأسبوع", "answers": ["مطعم", "سينما", "زيارة أهل", "تسوق", "نوم", "بحر", "ألعاب", "رياضة", "كافيه", "رحلة قصيرة"]}, {"category": "بحر", "question": "اذكر 10 أشياء تأخذها معك إلى البحر", "answers": ["منشفة", "ماء", "واقي شمس", "نظارة شمسية", "شبشب", "ملابس سباحة", "وجبات خفيفة", "كرسي", "مظلة", "جوال"]}, {"category": "منزل", "question": "اذكر 10 غرف أو مساحات شائعة في المنزل", "answers": ["غرفة نوم", "صالة", "مطبخ", "حمام", "مجلس", "غرفة طعام", "مخزن", "غرفة غسيل", "مكتب", "سطح"]}, {"category": "تسوق", "question": "اذكر 10 أقسام شائعة في السوبرماركت", "answers": ["خضار", "فواكه", "ألبان", "مخبوزات", "لحوم", "مشروبات", "منظفات", "معلبات", "حلويات", "مجمدات"]}, {"category": "دوام", "question": "اذكر 10 أشياء قد تكون على مكتب موظف", "answers": ["كمبيوتر", "شاشة", "كيبورد", "ماوس", "جوال", "قلم", "دفتر", "كوب", "شاحن", "ملفات"]}, {"category": "طفولة", "question": "اذكر 10 أشياء مرتبطة بذكريات المدرسة", "answers": ["طابور", "فسحة", "شنطة", "دفتر", "اختبار", "سبورة", "مقصف", "واجب", "معلم", "أصدقاء"]}, {"category": "مناسبات", "question": "اذكر 10 أشياء تُجهز غالبًا قبل مناسبة أو حفلة", "answers": ["دعوات", "ملابس", "حلويات", "تصوير", "زينة", "موسيقى", "هدايا", "ضيافة", "مقاعد", "تنسيق المكان"]}, {"category": "صحة", "question": "اذكر 10 عادات يومية تساعد على نمط حياة صحي", "answers": ["شرب الماء", "النوم الكافي", "المشي", "الخضار", "الفواكه", "تقليل السكر", "الرياضة", "غسل اليدين", "وجبة فطور", "الراحة"]}, {"category": "تقنية", "question": "اذكر 10 ملحقات شائعة للأجهزة الإلكترونية", "answers": ["شاحن", "سماعات", "ماوس", "كيبورد", "كابل", "باور بانك", "حافظة", "حامل", "ذاكرة خارجية", "محول"]}, {"category": "سفر", "question": "اذكر 10 أماكن يزورها الناس عادة أثناء السياحة", "answers": ["مطعم", "سوق", "متحف", "شاطئ", "حديقة", "مول", "معلم تاريخي", "كافيه", "ممشى", "منتزه"]}, {"category": "أكل", "question": "اذكر 10 إضافات شائعة على البيتزا", "answers": ["جبن", "فطر", "زيتون", "فلفل", "بصل", "طماطم", "دجاج", "لحم", "ذرة", "أناناس"]}, {"category": "هدايا", "question": "اذكر 10 هدايا شائعة يمكن تقديمها لشخص", "answers": ["عطر", "ورد", "ساعة", "شوكولاتة", "كتاب", "ملابس", "إكسسوار", "قسيمة شراء", "حقيبة", "منتج إلكتروني"]}, {"category": "جوال", "question": "اذكر 10 أشياء يفعلها الناس بالجوال يوميًا", "answers": ["مراسلة", "اتصال", "تصوير", "تصفح", "خرائط", "دفع", "مشاهدة فيديو", "استماع", "تسوق", "بريد"]}, {"category": "بيت", "question": "اذكر 10 أجهزة كهربائية شائعة في المنزل", "answers": ["ثلاجة", "غسالة", "مكيف", "تلفزيون", "فرن", "ميكروويف", "مكنسة", "غلاية", "مكواة", "خلاط"]}, {"category": "رياضة", "question": "اذكر 10 أشياء قد تجدها في النادي الرياضي", "answers": ["أوزان", "جهاز مشي", "دراجة", "حصيرة", "مرايا", "خزائن", "ماء", "مناشف", "أجهزة مقاومة", "موسيقى"]}, {"category": "ليل", "question": "اذكر 10 أشياء يفعلها الناس قبل النوم", "answers": ["تفريش الأسنان", "تصفح الجوال", "ضبط المنبه", "شرب ماء", "تغيير الملابس", "إطفاء الأنوار", "قراءة", "شحن الجوال", "غسل الوجه", "إغلاق الأبواب"]}, {"category": "صباح", "question": "اذكر 10 أشياء يفعلها الناس بعد الاستيقاظ", "answers": ["إيقاف المنبه", "غسل الوجه", "تفريش الأسنان", "شرب ماء", "قهوة", "فطور", "لبس", "تفقد الجوال", "ترتيب السرير", "الخروج"]}, {"category": "مطار", "question": "اذكر 10 أشياء أو أماكن تجدها في المطار", "answers": ["بوابة", "جوازات", "أمن", "حقائب", "شاشات رحلات", "مطاعم", "مقاهي", "متاجر", "صالة انتظار", "طائرات"]}, {"category": "طريق", "question": "اذكر 10 أشياء تراها غالبًا أثناء القيادة في المدينة", "answers": ["سيارات", "إشارات", "لوحات", "محلات", "مشاة", "جسور", "مواقف", "محطات وقود", "كاميرات", "مطاعم"]}, {"category": "مكتب", "question": "اذكر 10 أدوات مكتبية شائعة", "answers": ["قلم", "دفتر", "دباسة", "مقص", "ملفات", "آلة حاسبة", "ملاحظات لاصقة", "مسطرة", "مشابك", "طابعة"]}, {"category": "عائلة", "question": "اذكر 10 أشياء يمكن للعائلة فعلها معًا", "answers": ["تناول الطعام", "مشاهدة فيلم", "زيارة", "سفر", "لعبة جماعية", "نزهة", "تسوق", "طبخ", "رياضة", "تصوير"]}, {"category": "تصوير", "question": "اذكر 10 أشياء يحاول الناس تصويرها كثيرًا", "answers": ["الأكل", "السفر", "الغروب", "الأصدقاء", "العائلة", "القهوة", "البحر", "الحيوانات", "المناسبات", "المناظر"]}, {"category": "رمضان", "question": "اذكر 10 أشياء مرتبطة برمضان", "answers": ["صيام", "إفطار", "سحور", "تمر", "مسجد", "تراويح", "فانوس", "مسلسلات", "عزائم", "صدقة"]}, {"category": "عيد", "question": "اذكر 10 أشياء مرتبطة بالعيد", "answers": ["ملابس جديدة", "عيدية", "حلويات", "زيارات", "صلاة العيد", "عطر", "تصوير", "هدايا", "قهوة", "تجمع عائلي"]}, {"category": "دراسة", "question": "اذكر 10 طرق يستخدمها الطلاب للمذاكرة", "answers": ["تلخيص", "حل أسئلة", "قراءة", "بطاقات مراجعة", "فيديوهات", "مجموعات دراسة", "كتابة ملاحظات", "اختبارات تجريبية", "خرائط ذهنية", "تكرار"]}, {"category": "أطفال", "question": "اذكر 10 ألعاب أو أنشطة يحبها الأطفال عادة", "answers": ["رسم", "مكعبات", "دراجات", "كرة", "ألعاب فيديو", "صلصال", "ألغاز", "تلوين", "عرائس", "اختباء"]}, {"category": "طقس", "question": "اذكر 10 كلمات مرتبطة بالطقس", "answers": ["شمس", "مطر", "رياح", "غيوم", "حرارة", "برد", "رطوبة", "ضباب", "عاصفة", "برق"]}, {"category": "مواصلات", "question": "اذكر 10 وسائل نقل", "answers": ["سيارة", "حافلة", "قطار", "طائرة", "دراجة", "دراجة نارية", "سفينة", "مترو", "تاكسي", "قارب"]}, {"category": "تطبيقات", "question": "اذكر 10 أسباب تجعل الناس يحذفون تطبيقًا من جوالهم", "answers": ["قلة الاستخدام", "مساحة التخزين", "إعلانات كثيرة", "بطء", "مشاكل خصوصية", "اشتراك غالي", "تعليق", "بديل أفضل", "إشعارات مزعجة", "تسجيل دخول صعب"]}];
+const BUILTIN_ATRASH=[{"category": "يوميات", "main": "أي تطبيق تفتحه غالبًا أول ما تصحى؟", "outsider": "أي تطبيق تفتحه غالبًا قبل ما تنام؟"}, {"category": "مشروبات", "main": "أي مشروب تطلبه غالبًا في الكافيه؟", "outsider": "أي مشروب تطلبه غالبًا بعد الأكل؟"}, {"category": "أماكن", "main": "أي مكان تفضله للتمشية؟", "outsider": "أي مكان تفضله للجلوس والراحة؟"}, {"category": "أكل", "main": "ما الأكلة التي تختارها إذا كنت مستعجلًا؟", "outsider": "ما الأكلة التي تختارها إذا كنت جائعًا جدًا؟"}, {"category": "سفر", "main": "أي شيء تتأكد أنه في شنطتك قبل السفر؟", "outsider": "أي شيء تتأكد أنه معك قبل الخروج من البيت؟"}, {"category": "تقنية", "main": "ما الجهاز الذي تستخدمه أكثر في البيت؟", "outsider": "ما الجهاز الذي تستخدمه أكثر خارج البيت؟"}, {"category": "وقت", "main": "لو عندك ساعة فاضية، ماذا تفعل غالبًا؟", "outsider": "لو عندك ساعتان فاضية، ماذا تفعل غالبًا؟"}, {"category": "مطاعم", "main": "ما أهم شيء عند اختيار مطعم جديد؟", "outsider": "ما أهم شيء يخليك ترجع لنفس المطعم مرة ثانية؟"}, {"category": "تسوق", "main": "ما أول شيء تنظر له قبل شراء ملابس؟", "outsider": "ما أول شيء تنظر له قبل شراء حذاء؟"}, {"category": "جوال", "main": "ما أكثر شيء يستهلك بطارية جوالك؟", "outsider": "ما أكثر شيء يستهلك وقتك على الجوال؟"}, {"category": "جامعة", "main": "ما أكثر شيء تنساه في يوم الجامعة؟", "outsider": "ما أكثر شيء تخاف تنساه في يوم الجامعة؟"}, {"category": "بيت", "main": "أي مكان في البيت تجلس فيه أكثر؟", "outsider": "أي مكان في البيت ترتاح فيه أكثر؟"}, {"category": "أصدقاء", "main": "ما النشاط الذي تفضله مع الأصدقاء في الليل؟", "outsider": "ما النشاط الذي تفضله مع الأصدقاء في العصر؟"}, {"category": "صباح", "main": "ما أول شيء تشربه في الصباح؟", "outsider": "ما أول شيء تأكله في الصباح؟"}, {"category": "سفر", "main": "أي نوع مكان تفضله في السفر: هادئ أو مزدحم؟ ولماذا؟", "outsider": "أي نوع مكان تفضله في السكن: هادئ أو مزدحم؟ ولماذا؟"}, {"category": "ترفيه", "main": "ما الشيء الذي تختاره غالبًا لمشاهدة شيء سريع؟", "outsider": "ما الشيء الذي تختاره غالبًا لمشاهدة شيء طويل؟"}, {"category": "مناسبات", "main": "ما الشيء الذي تهتم به أكثر قبل حضور مناسبة؟", "outsider": "ما الشيء الذي تهتم به أكثر قبل استقبال ضيوف؟"}, {"category": "مطاعم", "main": "ما الطلب الذي غالبًا تشاركه مع غيرك؟", "outsider": "ما الطلب الذي غالبًا تطلبه لنفسك فقط؟"}, {"category": "طقس", "main": "ما الجو الذي تحبه للخروج؟", "outsider": "ما الجو الذي تحبه للجلوس في البيت؟"}, {"category": "سيارة", "main": "ما الشيء الذي تستخدمه أكثر داخل السيارة؟", "outsider": "ما الشيء الذي تتمنى وجوده دائمًا داخل السيارة؟"}, {"category": "هدايا", "main": "ما الهدية التي تفرحك لو وصلتك بدون مناسبة؟", "outsider": "ما الهدية التي تفضل تقديمها لشخص قريب؟"}, {"category": "تطبيقات", "main": "أي تطبيق تستخدمه لما تكون طفشان؟", "outsider": "أي تطبيق تستخدمه لما تكون مستعجل؟"}, {"category": "نوم", "main": "ما الشيء الذي يساعدك تنام أسرع؟", "outsider": "ما الشيء الذي يخليك تصحى أسرع؟"}, {"category": "عمل", "main": "ما الشيء الذي يساعدك تركز أثناء العمل أو الدراسة؟", "outsider": "ما الشيء الذي يشتتك أثناء العمل أو الدراسة؟"}, {"category": "أكل", "main": "ما الأكل الذي تحبه أكثر وهو حار؟", "outsider": "ما الأكل الذي تحبه أكثر وهو بارد؟"}, {"category": "عائلة", "main": "ما النشاط الذي تستمتع به أكثر مع العائلة داخل البيت؟", "outsider": "ما النشاط الذي تستمتع به أكثر مع العائلة خارج البيت؟"}, {"category": "سفر", "main": "ما الشيء الذي تحب تخطط له قبل السفر؟", "outsider": "ما الشيء الذي تفضل تتركه بدون تخطيط في السفر؟"}, {"category": "تسوق", "main": "ما الشيء الذي ممكن تشتريه بسرعة بدون تفكير؟", "outsider": "ما الشيء الذي لا تشتريه إلا بعد مقارنة طويلة؟"}, {"category": "تقنية", "main": "ما الميزة التي تهمك أكثر في الجوال؟", "outsider": "ما الميزة التي تهمك أكثر في اللابتوب؟"}, {"category": "أصدقاء", "main": "من النوع الذي تتصل به إذا احتجت نصيحة؟ صف صفته.", "outsider": "من النوع الذي تتصل به إذا كنت طفشان؟ صف صفته."}, {"category": "أكل", "main": "ما الصوص الذي تضيفه غالبًا على البطاطس؟", "outsider": "ما الصوص الذي تضيفه غالبًا على البرغر؟"}, {"category": "مقهى", "main": "ما الشيء الذي يجعلك تختار كافيه معين؟", "outsider": "ما الشيء الذي يجعلك تجلس وقت أطول في كافيه معين؟"}, {"category": "وقت", "main": "ما أكثر شيء تندم أنك ضيعت وقتك عليه؟", "outsider": "ما أكثر شيء تحس يستاهل وقتك؟"}, {"category": "بيت", "main": "ما الشيء الذي ترتبه أولًا إذا جاء ضيف فجأة؟", "outsider": "ما الشيء الذي تنظفه أولًا إذا قررت ترتب البيت؟"}, {"category": "رياضة", "main": "ما نوع الرياضة التي ممكن تمارسها وحدك؟", "outsider": "ما نوع الرياضة التي تفضل تمارسها مع مجموعة؟"}, {"category": "سفر", "main": "ما الشيء الذي تشتريه غالبًا من المطار؟", "outsider": "ما الشيء الذي تشتريه غالبًا من محطة الوقود؟"}, {"category": "تصوير", "main": "ما الشيء الذي تحب تصوره في السفر؟", "outsider": "ما الشيء الذي تحب تصوره في المناسبات؟"}, {"category": "أكل", "main": "ما الوجبة التي تفضلها في نهاية الأسبوع؟", "outsider": "ما الوجبة التي تفضلها في يوم عمل أو دراسة؟"}, {"category": "جوال", "main": "ما أول إعداد تغيره في جوال جديد؟", "outsider": "ما أول تطبيق تثبته في جوال جديد؟"}, {"category": "خروج", "main": "ما الشيء الذي لا تحب تطلع من البيت بدونه؟", "outsider": "ما الشيء الذي لا تحب تسافر بدونه؟"}, {"category": "مشروبات", "main": "ما المشروب الذي تفضله إذا كنت تحتاج تركيز؟", "outsider": "ما المشروب الذي تفضله إذا كنت تحتاج استرخاء؟"}, {"category": "موسيقى", "main": "متى تسمع الموسيقى غالبًا؟", "outsider": "متى تفضل الصمت غالبًا؟"}, {"category": "تعلم", "main": "كيف تتعلم مهارة جديدة بشكل أسرع؟", "outsider": "كيف تراجع معلومة قديمة بشكل أسرع؟"}, {"category": "ترفيه", "main": "ما النوع الذي تفضله إذا بتشاهد فيلم مع مجموعة؟", "outsider": "ما النوع الذي تفضله إذا بتشاهد فيلم لوحدك؟"}, {"category": "بيت", "main": "ما الشيء الذي تصرف عليه أكثر في غرفتك؟", "outsider": "ما الشيء الذي تهتم به أكثر في غرفتك؟"}, {"category": "مناسبات", "main": "ما أول شيء تلاحظه في حفلة أو مناسبة؟", "outsider": "ما آخر شيء تتذكره بعد حفلة أو مناسبة؟"}, {"category": "سوشيال", "main": "ما الشيء الذي ممكن تنشره في الستوري؟", "outsider": "ما الشيء الذي ممكن ترسله فقط للأصدقاء المقربين؟"}, {"category": "مطاعم", "main": "ما الشيء الذي تطلبه إذا ما كنت جائع جدًا؟", "outsider": "ما الشيء الذي تطلبه إذا ما كنت عارف وش تختار؟"}, {"category": "سفر", "main": "ما نوع المكان الذي تحب تزوره أول يوم في مدينة جديدة؟", "outsider": "ما نوع المكان الذي تحب تزوره آخر يوم في مدينة جديدة؟"}, {"category": "روتين", "main": "ما العادة التي لو سويتها صباحًا يتحسن يومك؟", "outsider": "ما العادة التي لو سويتها ليلًا يتحسن يومك التالي؟"}];
+
+const $=id=>document.getElementById(id);
+const screens=[...document.querySelectorAll(".screen")];
+const TOP10_SYNONYM_GROUPS=[["برد", "البرد", "برودة", "البرودة", "جو بارد", "الجو البارد", "بارد"], ["معطف", "جاكيت", "جاكت", "كوت", "بالطو", "بالطوه", "معطف شتوي"], ["جوال", "الجوال", "موبايل", "هاتف", "الهاتف", "تلفون", "تليفون"], ["حقيبة", "شنطة", "شنطه", "الشنطة", "الشنطه"], ["حقيبة السفر", "شنطة سفر", "شنطه سفر", "شنطة السفر", "حقيبة سفر"], ["كافيه", "مقهى", "كوفي", "كافي"], ["ماء", "الماء", "موية", "مويه", "مويا"], ["حذاء", "جزمة", "جزمه", "شوز"], ["نظارة شمسية", "نظارة شمس", "نظاره شمس", "سن جلاس", "سن قلاس"], ["واقي شمس", "واقي الشمس", "صن بلوك", "سن بلوك"], ["مناديل", "منديل", "كلينكس", "كلينكيس", "فاين"], ["سماعات", "سماعة", "ايربودز", "ايربود", "هيدفون", "سماعات اذن"], ["شاحن", "الشاحن", "سلك شحن", "كيبل شحن", "كابل شحن"], ["واتساب", "واتس", "الواتس", "الواتساب", "whatsapp"], ["يوتيوب", "اليوتيوب", "youtube"], ["تيك توك", "تيكتوك", "التيك توك", "tiktok"], ["إنستغرام", "انستغرام", "انستقرام", "انستا", "instagram"], ["سناب شات", "سناب", "السناب", "سنابشات", "snapchat"], ["البريد", "بريد", "ايميل", "الإيميل", "بريد الكتروني", "البريد الإلكتروني"], ["الخرائط", "خرائط", "ماب", "مابس", "قوقل ماب", "خرائط قوقل", "google maps"], ["المتصفح", "متصفح", "براوزر", "كروم", "سفاري", "browser"], ["الموسيقى", "موسيقى", "اغاني", "أغاني", "ميوزك", "music"], ["البنك", "بنك", "تطبيق البنك", "المصرف"], ["كمبيوتر", "حاسب", "حاسوب", "بي سي", "pc"], ["شاشة", "الشاشة", "مونيتور", "monitor"], ["كيبورد", "كي بورد", "لوحة مفاتيح", "keyboard"], ["ماوس", "فأرة", "فاره", "mouse"], ["باور بانك", "باوربنك", "شاحن متنقل", "بطارية متنقلة", "بنك طاقة"], ["تلفزيون", "تلفاز", "تي في", "tv"], ["مكيف", "المكيف", "تكييف"], ["ثلاجة", "الثلاجة", "تلاجة", "تلاجه"], ["ميكروويف", "مايكرويف", "مايكروويف"], ["مكنسة", "المكنسة", "مكنسه", "فاكيوم"], ["غلاية", "غلايه", "كاتل", "غلاية ماء"], ["مكواة", "مكواه", "كواية", "كوايه"], ["خلاط", "الخلاط", "بلندر"], ["خبز", "الخبز", "عيش"], ["جبن", "جبنة", "جبنه", "الجبن"], ["زبادي", "الزبادي", "روب", "يوغرت", "يوجرت"], ["فواكه", "الفواكه", "فاكهة", "فاكهه"], ["لاتيه", "لاتي", "latte"], ["كابتشينو", "كبتشينو", "cappuccino"], ["إسبريسو", "اسبريسو", "اسبرسو", "espresso"], ["شوكولاتة ساخنة", "شوكولاته ساخنه", "هوت شوكلت", "هوت تشوكلت", "hot chocolate"], ["مطعم", "المطعم", "ريستورانت"], ["سينما", "السينما", "موفيز", "movies"], ["تسوق", "شوبينق", "شوبنق", "shopping"], ["رياضة", "الرياضة", "تمرين", "تمارين", "جيم"], ["منشفة", "منشفه", "فوطة", "فوطه", "تاول"], ["شبشب", "صندل", "شوز بحر"], ["وجبات خفيفة", "وجبه خفيفه", "سناك", "سناكات", "snacks"], ["مظلة", "المظلة", "شمسية", "شمسيه"], ["صالة", "الصالة", "صاله"], ["حمام", "الحمام", "دورة مياه", "دوره مياه"], ["غرفة طعام", "غرفه طعام", "سفرة", "غرفة السفرة"], ["مخزن", "المخزن", "مستودع"], ["خضار", "الخضار", "خضروات"], ["ألبان", "البان", "منتجات ألبان", "حليب ومشتقاته"], ["مخبوزات", "خبز ومعجنات", "معجنات"], ["لحوم", "لحم", "اللحم", "لحمة"], ["معلبات", "المعلبات"], ["حلويات", "الحلويات", "حلى", "حلا"], ["مجمدات", "المجمدات", "فروزن", "أطعمة مجمدة"], ["اختبار", "الاختبار", "امتحان", "كويز"], ["معلم", "المعلم", "مدرس", "استاذ"], ["أصدقاء", "اصدقاء", "اصحاب", "صحبات"], ["زينة", "الزينة", "زينه", "ديكور"], ["هدايا", "هدية", "هديه", "الهدايا"], ["النوم الكافي", "نوم كافي", "النوم", "نوم"], ["المشي", "مشي", "امشي", "أمشي"], ["تقليل السكر", "تخفيف السكر", "سكر أقل", "اقل سكر"], ["حافظة", "الحافظة", "كفر", "جراب"], ["حامل", "ستاند", "حامل جوال", "ستاند جوال"], ["ذاكرة خارجية", "فلاش", "usb", "يو اس بي", "هارد خارجي"], ["محول", "ادابتر", "adapter", "وصلة"], ["شاطئ", "الشاطئ", "بحر"], ["حديقة", "الحديقة", "بارك"], ["مول", "المول", "مجمع تجاري"], ["منتزه", "المنتزه", "بارك", "حديقة"], ["فطر", "الفطر", "مشروم"], ["طماطم", "بندورة", "بندوره"], ["عطر", "العطر", "برفيوم", "perfume"], ["ورد", "الورد", "ورود", "زهور"], ["ساعة", "الساعة", "واتش", "watch"], ["شوكولاتة", "شوكولاته", "تشوكلت"], ["إكسسوار", "اكسسوار", "اكسسوارات", "إكسسوارات"], ["قسيمة شراء", "قسيمة", "بطاقة هدية", "جيفت كارد", "gift card"], ["مراسلة", "رسائل", "شات", "محادثات"], ["اتصال", "مكالمة", "مكالمه", "اتصالات"], ["تصفح", "التصفح", "انترنت", "نت"], ["دفع", "الدفع", "مدفوعات", "ابل باي", "apple pay"], ["أوزان", "اوزان", "حديد", "دمبل", "دامبل"], ["جهاز مشي", "سير", "تريدميل", "treadmill"], ["دراجة", "سيكل", "دراجة هوائية", "بايسكل"], ["حصيرة", "حصيره", "مات", "فرشة رياضة"], ["خزائن", "لوكر", "لوكرز"], ["مناشف", "فوط", "تاول"], ["تفريش الأسنان", "تنظيف الاسنان", "فرش الأسنان", "تفريش اسنان"], ["ضبط المنبه", "منبه", "المنبه", "احط منبه"], ["تغيير الملابس", "تبديل الملابس", "بجامة", "بيجامة", "ملابس النوم"], ["إطفاء الأنوار", "اطفي النور", "إغلاق النور"], ["شحن الجوال", "اشحن الجوال", "شحن", "الشاحن"], ["غسل الوجه", "اغسل وجهي", "غسيل الوجه"], ["إغلاق الأبواب", "اقفل الباب", "قفل الأبواب", "تسكير الباب"], ["إيقاف المنبه", "اطفي المنبه", "اغلق المنبه"], ["تفقد الجوال", "اشوف الجوال", "افتح الجوال"], ["بوابة", "البوابة", "قيت", "gate"], ["جوازات", "الجوازات", "passport control"], ["أمن", "امن", "التفتيش", "security"], ["صالة انتظار", "انتظار", "لاونج", "الصالة"], ["طائرات", "طائرة", "طيارة"], ["إشارات", "اشارة", "إشارة مرور"], ["مواقف", "المواقف", "باركنق", "باركينج"], ["محطات وقود", "محطة وقود", "محطة بنزين", "بنزين"], ["كاميرات", "كاميرا", "ساهر"], ["آلة حاسبة", "اله حاسبه", "حاسبة", "كالكوليتر"], ["ملاحظات لاصقة", "ملاحظات", "ستيكي نوت", "بوست ات"], ["طابعة", "الطابعة", "برنتر", "printer"], ["تناول الطعام", "اكل", "الأكل", "نتغدى", "نتعشى"], ["مشاهدة فيلم", "فيلم", "نتفرج"], ["نزهة", "طلعة", "نطلع"], ["العائلة", "عائلة", "اهل", "الأهل"], ["الغروب", "غروب", "غروب الشمس"], ["صيام", "الصيام"], ["إفطار", "افطار", "فطور", "الفطور"], ["سحور", "السحور"], ["عيدية", "العيدية", "فلوس العيد"], ["تلخيص", "ملخص", "تلخيصات"], ["حل أسئلة", "حل اسئلة", "حل نماذج", "اسئلة"], ["بطاقات مراجعة", "فلاش كارد", "بطاقات", "flashcards"], ["مجموعات دراسة", "قروب دراسة", "جروب دراسة", "مذاكرة جماعية"], ["اختبارات تجريبية", "نماذج", "تجريبي", "موك"], ["خرائط ذهنية", "خريطة ذهنية", "مايند ماب", "mind map"], ["مكعبات", "ليغو", "ليجو"], ["ألعاب فيديو", "العاب الكترونية", "قيمز", "بلايستيشن"], ["ألغاز", "الغاز", "بازل", "puzzle"], ["عرائس", "دمى", "باربي", "عروسة"], ["اختباء", "غميضة", "استغماية"], ["مطر", "المطر", "امطار"], ["رياح", "الرياح", "هواء"], ["غيوم", "الغيوم", "سحب"], ["حرارة", "الحرارة", "حر"], ["حافلة", "الحافلة", "باص", "اتوبيس"], ["طائرة", "الطائرة", "طيارة"], ["دراجة نارية", "دباب", "موتر", "موتوسيكل", "motorcycle"], ["سفينة", "السفينة", "باخرة"], ["تاكسي", "التاكسي", "اوبر", "كريم"], ["قلة الاستخدام", "عدم الاستخدام", "ما استخدمه", "ما احتاجه"], ["مساحة التخزين", "مساحة", "ذاكرة", "storage"], ["إعلانات كثيرة", "اعلانات", "الإعلانات", "ads"], ["بطء", "بطيء", "ثقيل"], ["مشاكل خصوصية", "خصوصية", "privacy"], ["اشتراك غالي", "غالي", "اشتراك", "السعر"], ["تعليق", "يعلق", "تهنيق", "كراش"], ["بديل أفضل", "بديل", "تطبيق افضل"], ["إشعارات مزعجة", "اشعارات", "تنبيهات مزعجة"], ["تسجيل دخول صعب", "تسجيل الدخول", "لوقن", "دخول صعب"]];
+
+const state={
+ top10:{mode:"auto",sessionId:"",pool:[],used:new Set(),round:0,maxRounds:10,current:null,activeTeam:"A",scores:{A:0,B:0},hearts:{A:3,B:3},teamA:"الفريق أ",teamB:"الفريق ب",revealed:new Set(),pendingAnswer:"",pendingMatch:-1},
+ atrash:{mode:"local",players:[],scores:{},round:0,maxRounds:10,pool:[],used:new Set(),pair:null,outsiderIndex:0,answerIndex:0,answers:[],voteIndex:0,votes:[],selectedVote:null}
+};
+
+function showScreen(id){screens.forEach(s=>s.classList.toggle("active",s.id===id));$("backBtn").classList.toggle("hidden",id==="home");window.scrollTo({top:0,behavior:"smooth"})}
+document.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>showScreen(b.dataset.go));
+$("backBtn").onclick=()=>showScreen("home");
+function shuffle(a){a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function pickUnused(pool,used){const avail=pool.map((x,i)=>({x,i})).filter(o=>!used.has(o.i));if(!avail.length)return null;const p=avail[Math.floor(Math.random()*avail.length)];used.add(p.i);return p.x}
+function norm(s){
+  let x=(s||"").toLowerCase().normalize("NFD")
+    .replace(/[\u064B-\u065F\u0670]/g,"")
+    .replace(/[أإآٱ]/g,"ا").replace(/ؤ/g,"و").replace(/ئ/g,"ي").replace(/ى/g,"ي").replace(/ة/g,"ه")
+    .replace(/[^\u0600-\u06FFa-z0-9 ]/g," ").replace(/\s+/g," ").trim();
+  // Remove Arabic definite article word-by-word: البرد -> برد.
+  x=x.split(" ").map(w=>w.length>3&&w.startsWith("ال")?w.slice(2):w).join(" ");
+  return x.replace(/ /g,"");
+}
+function lev(a,b){const m=a.length,n=b.length,d=Array.from({length:m+1},()=>Array(n+1).fill(0));for(let i=0;i<=m;i++)d[i][0]=i;for(let j=0;j<=n;j++)d[0][j]=j;for(let i=1;i<=m;i++)for(let j=1;j<=n;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return d[m][n]}
+function variantsFor(answer){
+  const target=norm(answer);const out=[answer];
+  TOP10_SYNONYM_GROUPS.forEach(g=>{if(g.some(v=>norm(v)===target))out.push(...g)});
+  return [...new Set(out)];
+}
+function matchScore(input,candidate){
+  const a=norm(input),b=norm(candidate);if(!a||!b)return 0;if(a===b)return 100;
+  if(a.length>=3&&b.length>=3&&(a.includes(b)||b.includes(a)))return 93;
+  const dist=lev(a,b),mx=Math.max(a.length,b.length);if(mx>=4&&dist===1)return 90;if(mx>=5&&dist===2)return 82;
+  return Math.round((1-dist/mx)*75);
+}
+function bestTop10Match(input){
+  let best={index:-1,score:0,via:""};
+  state.top10.current.answers.forEach((ans,i)=>{if(state.top10.revealed.has(i))return;variantsFor(ans).forEach(v=>{const s=matchScore(input,v);if(s>best.score)best={index:i,score:s,via:v}})});
+  return best;
+}
+// TOP10
+function renderTeams(){
+  $("teamA").classList.toggle("active",state.top10.activeTeam==="A"&&state.top10.hearts.A>0);
+  $("teamB").classList.toggle("active",state.top10.activeTeam==="B"&&state.top10.hearts.B>0);
+  $("teamA").classList.toggle("eliminated",state.top10.hearts.A<=0);
+  $("teamB").classList.toggle("eliminated",state.top10.hearts.B<=0);
+  $("teamAName").textContent=state.top10.teamA;
+  $("teamBName").textContent=state.top10.teamB;
+  $("teamAScore").textContent=state.top10.scores.A;
+  $("teamBScore").textContent=state.top10.scores.B;
+  $("teamAHearts").innerHTML=Array.from({length:3},(_,i)=>`<span class="heart ${i<state.top10.hearts.A?"":"off"}">❤️</span>`).join("");
+  $("teamBHearts").innerHTML=Array.from({length:3},(_,i)=>`<span class="heart ${i<state.top10.hearts.B?"":"off"}">❤️</span>`).join("");
+}
+function nextPlayableTeam(){
+  const other=state.top10.activeTeam==="A"?"B":"A";
+  if(state.top10.hearts[other]>0){state.top10.activeTeam=other;return true}
+  if(state.top10.hearts[state.top10.activeTeam]>0)return true;
+  return false;
+}
+function endTop10IfNeeded(){
+  if(state.top10.revealed.size>=10){
+    $("top10Notice").textContent="🎉 انكشفت كل الإجابات. تقدرون تعدلون النقاط يدويًا إذا احتجتم.";
+    return true;
+  }
+  if(state.top10.hearts.A<=0 && state.top10.hearts.B<=0){
+    $("top10Notice").textContent="انتهت محاولات الفريقين. تم كشف بقية الإجابات.";
+    state.top10.current.answers.forEach((_,i)=>state.top10.revealed.add(i));
+    renderTop10Answers();publishHostState();
+    return true;
+  }
+  return false;
+}
+$("teamA").onclick=e=>{};
+$("teamB").onclick=e=>{};
+document.querySelectorAll(".score-btn").forEach(b=>b.onclick=()=>{const t=b.dataset.team,d=+b.dataset.delta;state.top10.scores[t]+=d;renderTeams()})
+function renderTop10Answers(){const box=$("top10Answers");box.innerHTML="";state.top10.current.answers.forEach((ans,i)=>{const r=state.top10.revealed.has(i);const row=document.createElement("div");row.className="answer-row"+(r?" revealed":"");row.innerHTML=`<div class="rank">${i+1}</div><div class="answer-text ${r?"":"hidden-answer"}">${r?ans:"••••••"}</div>`;box.appendChild(row)})}
+
+function publishHostState(){
+  if(state.top10.mode!=="host"||!state.top10.current)return;
+  localStorage.setItem("lamma_host_state",JSON.stringify({sessionId:state.top10.sessionId,question:state.top10.current.question,answers:state.top10.current.answers,revealed:[...state.top10.revealed],activeTeam:state.top10.activeTeam,teamA:state.top10.teamA,teamB:state.top10.teamB,ts:Date.now()}));
+}
+function confirmTop10Answer(i){
+  const team=state.top10.activeTeam;if(state.top10.hearts[team]<=0||state.top10.revealed.has(i))return;
+  state.top10.revealed.add(i);const pts=i+1;state.top10.scores[team]+=pts;state.top10.pendingAnswer="";state.top10.pendingMatch=-1;
+  renderTop10Answers();renderTeams();$("top10Notice").textContent=`✅ المركز ${i+1}. أضيفت ${pts} نقطة لـ ${team==="A"?state.top10.teamA:state.top10.teamB}.`;
+  if(!endTop10IfNeeded()){nextPlayableTeam();renderTeams();const n=state.top10.activeTeam==="A"?state.top10.teamA:state.top10.teamB;$("top10Notice").textContent+=` الدور الآن على ${n}.`;}
+  $("top10AnswerInput").value="";publishHostState();
+}
+function markTop10Wrong(){
+  const team=state.top10.activeTeam;if(state.top10.hearts[team]<=0)return;state.top10.hearts[team]=Math.max(0,state.top10.hearts[team]-1);const left=state.top10.hearts[team];const name=team==="A"?state.top10.teamA:state.top10.teamB;
+  state.top10.pendingAnswer="";state.top10.pendingMatch=-1;$("top10AnswerInput").value="";$("top10Notice").textContent=left>0?`💔 غير موجودة. بقي لـ ${name} ${left} قلوب.`:`💔 انتهت محاولات ${name} في هذه الجولة.`;
+  if(!endTop10IfNeeded()){nextPlayableTeam();const nextName=state.top10.activeTeam==="A"?state.top10.teamA:state.top10.teamB;$("top10Notice").textContent+=` الدور الآن على ${nextName}.`;}
+  renderTeams();publishHostState();
+}
+function nextTop10(){if(state.top10.round>=state.top10.maxRounds){alert("انتهت الجولات");showScreen("home");return}const q=pickUnused(state.top10.pool,state.top10.used);if(!q){alert("خلصت الأسئلة");showScreen("home");return}state.top10.current=q;state.top10.revealed=new Set();state.top10.hearts={A:3,B:3};state.top10.pendingAnswer="";state.top10.pendingMatch=-1;state.top10.round++;state.top10.activeTeam=(state.top10.round%2===1)?"A":"B";$("top10Cat").textContent=q.category||"عام";$("top10Question").textContent=q.question;$("top10Notice").textContent=`بداية الجولة: الدور على ${state.top10.activeTeam==="A"?state.top10.teamA:state.top10.teamB}. ${state.top10.mode==="auto"?"المطابقة تلقائية.":"الإجابة ستذهب لجهاز الهوست الخاص."}`;$("topModeBadge").textContent=state.top10.mode==="auto"?"⚡ بدون هوست — مطابقة تلقائية":"🎛️ مع هوست — تأكيد من جهاز خاص";renderTop10Answers();renderTeams();publishHostState();$("top10Progress").textContent=`الجولة ${state.top10.round} من ${state.top10.maxRounds}`;}
+$("startTop10").onclick=()=>{if(state.top10.mode==="host"&&!state.top10.sessionId)state.top10.sessionId=randomSessionId();state.top10.pool=shuffle(BUILTIN_TOP10);state.top10.used=new Set();state.top10.round=0;state.top10.maxRounds=Math.max(1,Math.min(50,+$("top10Rounds").value||10));state.top10.teamA=$("teamAInput").value.trim()||"الفريق أ";state.top10.teamB=$("teamBInput").value.trim()||"الفريق ب";state.top10.scores={A:0,B:0};state.top10.hearts={A:3,B:3};state.top10.activeTeam="A";showScreen("top10Game");nextTop10()}
+$("revealAllTop10").onclick=()=>{state.top10.current.answers.forEach((_,i)=>state.top10.revealed.add(i));renderTop10Answers();publishHostState();$("top10Notice").textContent="تم كشف القائمة كاملة. الآن عدلوا نقاط أي فريق يدويًا إذا كان قال نفس المعنى بمصطلح مختلف."}
+$("nextTop10").onclick=nextTop10;
+
+
+
+$("submitTop10Answer").onclick=()=>{
+  const txt=$("top10AnswerInput").value.trim();if(!txt)return;const team=state.top10.activeTeam;if(state.top10.hearts[team]<=0)return;
+  state.top10.pendingAnswer=txt;const best=bestTop10Match(txt);state.top10.pendingMatch=best.index;
+  if(state.top10.mode==="auto"){
+    // Exact synonym/normalized match or very close spelling is accepted automatically.
+    if(best.index>=0&&best.score>=88)confirmTop10Answer(best.index);else markTop10Wrong();
+  }else{
+    localStorage.setItem("lamma_host_pending",JSON.stringify({sessionId:state.top10.sessionId,text:txt,suggestedIndex:best.score>=70?best.index:-1,suggestedScore:best.score,via:best.via,ts:Date.now()}));
+    publishHostState();$("top10Notice").textContent="⏳ أُرسلت الإجابة إلى جهاز الهوست. بانتظار التأكيد...";
+  }
+};
+$("top10AnswerInput").addEventListener("keydown",e=>{if(e.key==="Enter")$("submitTop10Answer").click()});
+window.addEventListener("storage",e=>{
+  if(e.key!=="lamma_host_action"||state.top10.mode!=="host")return;
+  try{const a=JSON.parse(e.newValue||"{}");if(a.sessionId!==state.top10.sessionId)return;if(a.type==="correct"&&Number.isInteger(a.index))confirmTop10Answer(a.index);else if(a.type==="wrong")markTop10Wrong()}catch{}
+});
+
+// Top 10 mode setup
+$("topAutoMode").onclick=()=>{state.top10.mode="auto";$("topAutoMode").classList.add("selected");$("topHostMode").classList.remove("selected");$("hostPrep").classList.add("hidden")};
+$("topHostMode").onclick=()=>{state.top10.mode="host";$("topHostMode").classList.add("selected");$("topAutoMode").classList.remove("selected");$("hostPrep").classList.remove("hidden")};
+let hostAccessTimer=null;
+function randomSessionId(){if(window.crypto&&crypto.getRandomValues){const a=new Uint32Array(2);crypto.getRandomValues(a);return (a[0].toString(36)+a[1].toString(36)).slice(0,10).toUpperCase()}return Math.random().toString(36).slice(2,12).toUpperCase()}
+$("makeHostAccess").onclick=()=>{
+  state.top10.sessionId=randomSessionId();const link=new URL("host.html",location.href);link.searchParams.set("room",state.top10.sessionId);$("hostCode").textContent=state.top10.sessionId;$("hostPrivateLink").href=link.href;$("hostAccess").classList.remove("hidden");$("hostQr").innerHTML="";
+  if(window.QRCode)new QRCode($("hostQr"),{text:link.href,width:176,height:176});else $("hostQr").textContent="QR غير متاح — استخدم زر فتح لوحة الهوست";
+  clearInterval(hostAccessTimer);let left=15;$("hostCountdown").textContent=`سيختفي الرمز خلال ${left} ثانية`;
+  hostAccessTimer=setInterval(()=>{left--;$("hostCountdown").textContent=`سيختفي الرمز خلال ${Math.max(0,left)} ثانية`;if(left<=0){clearInterval(hostAccessTimer);$("hostAccess").classList.add("hidden")}},1000);
+};
+$("hideHostAccess").onclick=()=>{$("hostAccess").classList.add("hidden");clearInterval(hostAccessTimer)};
+
+// ATRASH mode
+$("localMode").onclick=()=>{state.atrash.mode="local";$("localMode").classList.add("selected");$("onlineMode").classList.remove("selected");$("localSetupFields").classList.remove("hidden");$("onlineSetupFields").classList.add("hidden")}
+$("onlineMode").onclick=()=>{state.atrash.mode="online";$("onlineMode").classList.add("selected");$("localMode").classList.remove("selected");$("onlineSetupFields").classList.remove("hidden");$("localSetupFields").classList.add("hidden")}
+$("createOnlineMock").onclick=()=>showScreen("onlineMock");
+
+function startLocalRound(){
+ if(state.atrash.round>=state.atrash.maxRounds){alert("انتهت الجولات");showScreen("home");return}
+ const pair=pickUnused(state.atrash.pool,state.atrash.used);if(!pair){alert("خلصت الأسئلة");showScreen("home");return}
+ state.atrash.pair=pair;state.atrash.round++;{
+   const n=state.atrash.players.length;
+   if(window.crypto&&crypto.getRandomValues){
+     const a=new Uint32Array(1);crypto.getRandomValues(a);state.atrash.outsiderIndex=a[0]%n;
+   }else{
+     state.atrash.outsiderIndex=Math.floor(Math.random()*n);
+   }
+ }state.atrash.answerIndex=0;state.atrash.answers=Array(state.atrash.players.length).fill("");state.atrash.votes=Array(state.atrash.players.length).fill(null);state.atrash.voteIndex=0;state.atrash.selectedVote=null;
+ $("answerPassStage").classList.remove("hidden");$("discussionStage").classList.add("hidden");$("voteStage").classList.add("hidden");$("resultStage").classList.add("hidden");prepareAnswerPass()
+}
+function prepareAnswerPass(){
+ const i=state.atrash.answerIndex;$("passPlayer").textContent=`مرر الجوال إلى ${state.atrash.players[i]}`;$("secretArea").innerHTML='<button class="primary" id="showSecretNow">أظهر سؤالي</button>';$("answerArea").classList.add("hidden");$("atrashAnswerInput").value="";
+ $("showSecretNow").onclick=()=>{const q=i===state.atrash.outsiderIndex?state.atrash.pair.outsider:state.atrash.pair.main;$("secretArea").innerHTML=`<div class="secret-question">${q}</div><div class="muted">اكتب جوابك ثم اضغط إرسال.</div>`;$("answerArea").classList.remove("hidden")}
+}
+$("startAtrashLocal").onclick=()=>{const players=$("atrashPlayers").value.split("\n").map(x=>x.trim()).filter(Boolean);if(players.length<3){alert("تحتاج 3 لاعبين على الأقل");return}state.atrash.players=players;state.atrash.scores=Object.fromEntries(players.map(n=>[n,0]));state.atrash.pool=shuffle(BUILTIN_ATRASH);state.atrash.used=new Set();state.atrash.round=0;state.atrash.maxRounds=Math.max(1,Math.min(50,+$("atrashRounds").value||10));showScreen("atrashLocalGame");startLocalRound()}
+$("submitAtrashAnswer").onclick=()=>{const v=$("atrashAnswerInput").value.trim();if(!v)return;state.atrash.answers[state.atrash.answerIndex]=v;state.atrash.answerIndex++;if(state.atrash.answerIndex>=state.atrash.players.length){showDiscussion()}else prepareAnswerPass()}
+function showDiscussion(){$("answerPassStage").classList.add("hidden");$("discussionStage").classList.remove("hidden");$("realQuestion").textContent=state.atrash.pair.main;const box=$("allAnswers");box.innerHTML="";state.atrash.players.forEach((n,i)=>{const d=document.createElement("div");d.className="person-answer";d.innerHTML=`<b>${n}</b><div>${state.atrash.answers[i]}</div>`;box.appendChild(d)})}
+$("startVoting").onclick=()=>{$("discussionStage").classList.add("hidden");$("voteStage").classList.remove("hidden");state.atrash.voteIndex=0;prepareVote()}
+function prepareVote(){const vi=state.atrash.voteIndex;state.atrash.selectedVote=null;$("votePlayer").textContent=`مرر الجوال إلى ${state.atrash.players[vi]}`;$("submitVote").disabled=true;const box=$("voteList");box.innerHTML="";state.atrash.players.forEach((n,i)=>{if(i===vi)return;const b=document.createElement("button");b.className="vote-option";b.textContent=n;b.onclick=()=>{state.atrash.selectedVote=i;[...box.children].forEach(x=>x.classList.remove("selected"));b.classList.add("selected");$("submitVote").disabled=false};box.appendChild(b)})}
+$("submitVote").onclick=()=>{state.atrash.votes[state.atrash.voteIndex]=state.atrash.selectedVote;state.atrash.voteIndex++;if(state.atrash.voteIndex>=state.atrash.players.length)showResults();else prepareVote()}
+function showResults(){
+ $("voteStage").classList.add("hidden");$("resultStage").classList.remove("hidden");const out=state.atrash.outsiderIndex;$("outsiderName").textContent=state.atrash.players[out];$("outsiderQuestion").textContent=state.atrash.pair.outsider;
+ const counts=Array(state.atrash.players.length).fill(0);state.atrash.votes.forEach(v=>{if(v!=null)counts[v]++});
+ const correctVoters=[];state.atrash.votes.forEach((v,i)=>{if(v===out)correctVoters.push(i)});
+ correctVoters.forEach(i=>state.atrash.scores[state.atrash.players[i]]+=1);
+ const threshold=Math.ceil(state.atrash.players.length/4);
+ let outsiderPts=0;if(correctVoters.length===0)outsiderPts=2;else if(correctVoters.length<=threshold)outsiderPts=1;
+ state.atrash.scores[state.atrash.players[out]]+=outsiderPts;
+ const vr=$("voteResults");vr.innerHTML="";state.atrash.players.forEach((n,i)=>{const d=document.createElement("div");d.className="result-row";d.innerHTML=`<b>${n}</b><div class="vote-count">${counts[i]} أصوات</div>`;vr.appendChild(d)});
+ $("scoreRuleText").textContent=`كل شخص صوّت للأطرش صح أخذ +1. الأطرش أخذ ${outsiderPts} نقطة. حد الربع لهذه الجولة = ${threshold} من ${state.atrash.players.length}.`;
+ renderPlayerScores();$("atrashProgress").textContent=`الجولة ${state.atrash.round} من ${state.atrash.maxRounds}`
+}
+function renderPlayerScores(){const box=$("playerScores");box.innerHTML="";state.atrash.players.slice().sort((a,b)=>state.atrash.scores[b]-state.atrash.scores[a]).forEach(n=>{const r=document.createElement("div");r.className="score-row";r.innerHTML=`<b>${n}</b><span class="score-value">${state.atrash.scores[n]}</span><span>نقطة</span>`;box.appendChild(r)})}
+$("nextAtrashRound").onclick=startLocalRound;
+</script>
+
+</body>
+</html>
