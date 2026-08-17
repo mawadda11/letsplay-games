@@ -140,10 +140,10 @@ async function startKalim(){const list=onlineMembers().sort((a,b)=>(a[1].joinedA
 function remaining(k){if(!k)return 0;if(!k.timerRunning)return Math.max(0,k.remainingMs||0);return Math.max(0,(k.deadline||Date.now())-Date.now());}
 function renderKalim(k){
   if(!k)return;lastKalimState=k;if(meta.status==='playing'){$("lobby").classList.add('hidden');$("gameArea").classList.remove('hidden');}
-  const names=Object.fromEntries(allMembers().map(([u,m])=>[u,m.name]));const rem=remaining(k);if(k.timerRunning&&rem<=0)stopExpiredKalim();
+  const names=Object.fromEntries(allMembers().map(([u,m])=>[u,m.name]));const rem=remaining(k);const finished=!!k.winnerUid;if(!finished&&k.timerRunning&&rem<=0)stopExpiredKalim();
   const opponents=(k.order||[]).map(uid=>`<div class="opp ${uid===k.currentUid?'active':''}"><b>${escapeHtml(names[uid]||'لاعب')}</b><div class="small">${uid===k.currentUid?'دوره الآن':'بانتظار الدور'} · ${(k.hands?.[uid]||[]).length} بطاقات</div></div>`).join('');
   const word=(k.stacks||[]).map(st=>{const top=st[st.length-1];return `<div class="word-slot"><div class="game-card-letter"><span class="corner">${escapeHtml(top.other||'')}</span>${escapeHtml(top.letter)}</div><div class="depth">${st.length>1?'فوق '+(st.length-1):''}</div></div>`}).join('');
-  $("gameArea").innerHTML=`<div class="kalim-layout"><div class="opponents">${opponents}</div><div class="question-box"><div class="small">الدور الآن</div><div class="question">${escapeHtml(names[k.currentUid]||'')}</div><div class="timer" id="displayTimer">${Math.ceil(rem/1000)}</div><div class="word">${word}</div><div class="notice">${escapeHtml(k.lastAction||'')}</div><div class="toolbar" style="justify-content:center"><button class="secondary" id="pauseK" ${k.transitionAt?'disabled':''}>${k.timerRunning?'⏸ إيقاف':'▶ استكمال'}</button><button class="secondary" id="resetK">↻ ${Math.round((k.timerMs||14000)/1000)} ثانية</button><button class="secondary" id="returnK">↩ إرجاع الدور</button></div></div>${k.winnerUid?`<div class="stage"><div class="winner">🏆 ${escapeHtml(names[k.winnerUid]||'الفائز')}</div></div>`:''}</div>`;
+  $("gameArea").innerHTML=`<div class="kalim-layout"><div class="opponents">${opponents}</div><div class="question-box"><div class="small">${finished?'انتهت اللعبة':'الدور الآن'}</div><div class="question">${escapeHtml(names[finished?k.winnerUid:k.currentUid]||'')}</div><div class="timer" id="displayTimer">${finished?'—':Math.ceil(rem/1000)}</div><div class="word">${word}</div><div class="notice">${escapeHtml(k.lastAction||'')}</div><div class="toolbar" style="justify-content:center"><button class="secondary" id="pauseK" ${finished||k.transitionAt?'disabled':''}>${k.timerRunning?'⏸ إيقاف':'▶ استكمال'}</button><button class="secondary" id="resetK" ${finished?'disabled':''}>↻ ${Math.round((k.timerMs||14000)/1000)} ثانية</button><button class="secondary" id="returnK">↩ إرجاع الدور</button></div></div>${finished?`<div class="stage"><div class="winner">🏆 ${escapeHtml(names[k.winnerUid]||'الفائز')}</div><div class="small">انتهت الجولة كاملة.</div></div>`:''}</div>`;
   $("pauseK").onclick=toggleKalimPause;$("resetK").onclick=resetKalimTimer;$("returnK").onclick=returnKalimTurn;
 }
 function miniCard(c){const f=c.useBack?c.b:c.a,o=c.useBack?c.a:c.b;return `<div class="mini-card"><small>${escapeHtml(o)}</small>${escapeHtml(f)}</div>`;}
@@ -157,10 +157,77 @@ function undoAutomaticKalimPenalty(k,uid){
   const idx=hand.findIndex(c=>c?.id===info.cardId);if(idx<0){delete k.lastPenaltyDraws[uid];return false;}
   const [card]=hand.splice(idx,1);k.deck=k.deck||[];k.deck.push(card);delete k.lastPenaltyDraws[uid];return true;
 }
-async function stopExpiredKalim(){await runTransaction(roomRef("public/kalim"),k=>{if(!k)return k;const nowMs=Date.now();if(k.timerRunning&&(k.deadline||0)<=nowMs){const uid=k.currentUid,penalized=applyAutomaticKalimPenalty(k,uid);k.timerRunning=false;k.remainingMs=0;k.transitionAt=nowMs+2000;k.bellStopped=true;k.starChoice=null;const who=members[uid]?.name||'اللاعب';k.lastAction=penalized?`انتهى وقت ${who} بدون بطاقة، فسحب بطاقة تلقائيًا`:'انتهى الوقت.';return k;}if(!k.timerRunning&&k.transitionAt&&k.transitionAt<=nowMs){const ms=k.timerMs||14000;k.currentIndex=((k.currentIndex||0)+1)%k.order.length;k.currentUid=k.order[k.currentIndex];if(k.lastPenaltyDraws)delete k.lastPenaltyDraws[k.currentUid];k.remainingMs=ms;k.deadline=nowMs+ms;k.timerRunning=true;k.bellStopped=false;k.transitionAt=null;k.turnPlay=null;k.starChoice=null;k.lastAction='بدأ دور اللاعب التالي تلقائيًا.';}return k;});}
-async function toggleKalimPause(){await runTransaction(roomRef("public/kalim"),k=>{if(!k||k.transitionAt)return k;if(k.timerRunning){k.remainingMs=Math.max(0,(k.deadline||Date.now())-Date.now());k.timerRunning=false;k.lastAction='تم إيقاف الوقت.';}else{k.deadline=Date.now()+(k.remainingMs||k.timerMs||14000);k.timerRunning=true;k.lastAction='تم استكمال الوقت.';}return k;});}
-async function resetKalimTimer(){await runTransaction(roomRef("public/kalim"),k=>{if(!k)return k;const ms=k.timerMs||14000;k.remainingMs=ms;k.deadline=Date.now()+ms;k.timerRunning=true;k.bellStopped=false;k.transitionAt=null;k.lastAction=`أُعيد الوقت إلى ${Math.round(ms/1000)} ثانية.`;return k;});}
-async function returnKalimTurn(){const k=(await get(roomRef("public/kalim"))).val();if(!k)return;const names=Object.fromEntries(allMembers().map(([u,m])=>[u,m.name]));const choices=(k.order||[]).map((u,i)=>`${i+1}: ${names[u]||u}`).join('\n');const n=prompt('اختاري رقم اللاعب:\n'+choices);const idx=Number(n)-1;if(idx<0||idx>=k.order.length)return;const uid=k.order[idx];await runTransaction(roomRef("public/kalim"),state=>{if(!state)return state;const ms=state.timerMs||14000,nowMs=Date.now();const returned=undoAutomaticKalimPenalty(state,uid);state.currentIndex=idx;state.currentUid=uid;state.remainingMs=ms;state.deadline=nowMs+ms;state.timerRunning=true;state.bellStopped=false;state.transitionAt=null;state.turnPlay=null;state.starChoice=null;state.lastAction=returned?`أُعيد الدور إلى ${names[uid]||''} وأُعيدت بطاقة العقوبة تلقائيًا`:`أُعيد الدور إلى ${names[uid]||''}`;return state;});}
-setInterval(async()=>{if(meta?.game==='kalim'&&meta?.status==='playing'){const s=(await get(roomRef("public/kalim"))).val();const el=$("displayTimer");if(s){await stopExpiredKalim();if(el)el.textContent=Math.ceil(remaining(s)/1000);}}},250);
+function undoKalimFinishingPlayFor(k,uid){
+  const info=(k.winnerUid===uid?k.winningPlay:null)||(k.pendingWinnerUid===uid?k.pendingWinnerPlay:null);
+  if(!info||info.uid!==uid)return false;
+  const stack=k.stacks?.[info.slot];if(!stack)return false;
+  let idx=info.cardId?stack.findIndex(x=>x?.card?.id===info.cardId):-1;
+  if(idx<0)idx=stack.map((x,i)=>({x,i})).filter(v=>v.x?.ownerUid===uid&&v.x?.card).pop()?.i??-1;
+  if(idx<0)return false;
+  const [entry]=stack.splice(idx,1);if(!entry?.card)return false;
+  k.hands[uid]=k.hands[uid]||[];k.hands[uid].push(entry.card);
+  if(k.pendingWinnerUid===uid){k.pendingWinnerUid=null;k.pendingWinnerPlay=null;}
+  if(k.winnerUid===uid){k.winnerUid=null;k.winningPlay=null;}
+  return true;
+}
+function finalizeKalimWinnerAtRoundBoundary(k,nextIndex){
+  const startIndex=Number.isInteger(k.roundStartIndex)?k.roundStartIndex:0;
+  if(nextIndex!==startIndex||!k.pendingWinnerUid)return false;
+  const uid=k.pendingWinnerUid;
+  if((k.hands?.[uid]||[]).length!==0){k.pendingWinnerUid=null;k.pendingWinnerPlay=null;return false;}
+  k.winnerUid=uid;k.winningPlay=k.pendingWinnerPlay||null;k.pendingWinnerUid=null;k.pendingWinnerPlay=null;
+  k.timerRunning=false;k.remainingMs=0;k.bellStopped=true;k.transitionAt=null;k.starChoice=null;k.turnPlay=null;
+  k.lastAction=`انتهت الجولة كاملة وفاز ${members[uid]?.name||'اللاعب'} 🏆`;return true;
+}
+function advanceKalimTurnState(k,nowMs){
+  const order=k.order||[];if(!order.length)return;
+  const nextIndex=((k.currentIndex||0)+1)%order.length;
+  if(finalizeKalimWinnerAtRoundBoundary(k,nextIndex))return;
+  const startIndex=Number.isInteger(k.roundStartIndex)?k.roundStartIndex:0;
+  if(nextIndex===startIndex)k.roundNumber=(k.roundNumber||1)+1;
+  const ms=k.timerMs||14000;k.currentIndex=nextIndex;k.currentUid=order[nextIndex];
+  if(k.lastPenaltyDraws)delete k.lastPenaltyDraws[k.currentUid];
+  k.remainingMs=ms;k.deadline=nowMs+ms;k.timerRunning=true;k.bellStopped=false;k.transitionAt=null;k.turnPlay=null;k.starChoice=null;k.lastAction='بدأ دور اللاعب التالي تلقائيًا.';
+}
+async function stopExpiredKalim(){
+  await runTransaction(roomRef("public/kalim"),k=>{
+    if(!k||k.winnerUid)return k;
+    const nowMs=Date.now();
+    if(k.timerRunning&&(k.deadline||0)<=nowMs){
+      const uid=k.currentUid,penalized=applyAutomaticKalimPenalty(k,uid);
+      k.timerRunning=false;k.remainingMs=0;k.transitionAt=nowMs+2000;k.bellStopped=true;k.starChoice=null;
+      const who=members[uid]?.name||'اللاعب';
+      k.lastAction=penalized?`انتهى وقت ${who} بدون بطاقة، فسحب بطاقة تلقائيًا`:(k.pendingWinnerUid===uid?`${who} خلص أوراقه، ونكمل الجولة حتى يأخذ الجميع نفس عدد الأدوار`:'انتهى الوقت.');
+      return k;
+    }
+    if(!k.timerRunning&&k.transitionAt&&k.transitionAt<=nowMs)advanceKalimTurnState(k,nowMs);
+    return k;
+  });
+}
+async function toggleKalimPause(){await runTransaction(roomRef("public/kalim"),k=>{if(!k||k.winnerUid||k.transitionAt)return k;if(k.timerRunning){k.remainingMs=Math.max(0,(k.deadline||Date.now())-Date.now());k.timerRunning=false;k.lastAction='تم إيقاف الوقت.';}else{k.deadline=Date.now()+(k.remainingMs||k.timerMs||14000);k.timerRunning=true;k.lastAction='تم استكمال الوقت.';}return k;});}
+async function resetKalimTimer(){await runTransaction(roomRef("public/kalim"),k=>{if(!k||k.winnerUid)return k;const ms=k.timerMs||14000;k.remainingMs=ms;k.deadline=Date.now()+ms;k.timerRunning=true;k.bellStopped=false;k.transitionAt=null;k.lastAction=`أُعيد الوقت إلى ${Math.round(ms/1000)} ثانية.`;return k;});}
+async function returnKalimTurn(){
+  const k=(await get(roomRef("public/kalim"))).val();if(!k)return;
+  const names=Object.fromEntries(allMembers().map(([u,m])=>[u,m.name]));
+  const allowed=k.winnerUid?[k.winnerUid]:(k.order||[]);
+  const choices=allowed.map((u,i)=>`${i+1}: ${names[u]||u}`).join('\n');
+  const n=prompt(k.winnerUid?'آخر كلمة للفائز مرفوضة؟ اختاريه لإلغاء الفوز وإرجاع بطاقته:\n'+choices:'اختاري رقم اللاعب:\n'+choices);
+  const pos=Number(n)-1;if(pos<0||pos>=allowed.length)return;
+  const uid=allowed[pos];
+  await runTransaction(roomRef("public/kalim"),state=>{
+    if(!state||state.starChoice)return state;
+    if(state.winnerUid&&uid!==state.winnerUid)return state;
+    const idx=(state.order||[]).indexOf(uid);if(idx<0)return state;
+    const ms=state.timerMs||14000,nowMs=Date.now();
+    const finishingReturned=undoKalimFinishingPlayFor(state,uid);
+    const penaltyReturned=undoAutomaticKalimPenalty(state,uid);
+    state.winnerUid=null;state.winningPlay=null;
+    if(state.pendingWinnerUid===uid){state.pendingWinnerUid=null;state.pendingWinnerPlay=null;}
+    state.currentIndex=idx;state.currentUid=uid;state.remainingMs=ms;state.deadline=nowMs+ms;state.timerRunning=true;state.bellStopped=false;state.transitionAt=null;state.turnPlay=null;state.starChoice=null;
+    state.lastAction=finishingReturned?`أُعيد دور ${names[uid]||''} وعادت آخر بطاقة أنهى بها أوراقه`:penaltyReturned?`أُعيد الدور إلى ${names[uid]||''} وأُعيدت بطاقة العقوبة تلقائيًا`:`أُعيد الدور إلى ${names[uid]||''}`;
+    return state;
+  });
+}
+setInterval(async()=>{if(meta?.game==='kalim'&&meta?.status==='playing'){const s=(await get(roomRef("public/kalim"))).val();const el=$("displayTimer");if(s){if(!s.winnerUid)await stopExpiredKalim();if(el)el.textContent=s.winnerUid?'—':Math.ceil(remaining(s)/1000);}}},250);
 
 boot().catch(e=>{$("boot").innerHTML='<h2>خطأ</h2><div class="notice">'+escapeHtml(e.message)+'</div>';});

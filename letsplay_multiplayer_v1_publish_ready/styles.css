@@ -107,3 +107,20 @@ button.pill{color:#d9e1f8;cursor:pointer}
 .return-turn-option{width:100%;background:#111b33;border:1px solid var(--line);border-radius:13px;padding:11px;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:right}
 .return-turn-option.current{border-color:var(--gold)}
 .return-turn-option:disabled{opacity:.55}
+
+
+/* v11 — compact in-game administration */
+.room-game-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:linear-gradient(180deg,#111b33,#0d1629);border:1px solid var(--line);border-radius:16px;padding:9px 11px;margin:0 0 8px;box-shadow:0 10px 24px rgba(0,0,0,.2)}
+.room-game-meta{min-width:0;text-align:right;line-height:1.35}.room-game-meta strong{display:block;font-size:18px}.room-game-meta .small{display:block;margin-bottom:2px}
+.room-admin-btn{flex:0 0 40px;width:40px;height:40px;border:1px solid var(--line);border-radius:12px;background:#15213b;color:#fff;font-size:21px;font-weight:900;display:grid;place-items:center;padding:0;box-shadow:none}
+.room-admin-btn:hover{border-color:#526a9f;background:#1a2949}.room-admin-btn:active{transform:translateY(1px)}
+.cohost-panel{left:12px;right:auto;top:118px;width:min(360px,calc(100vw - 24px));max-height:72dvh;overflow:auto;border-radius:20px;padding:13px}
+.admin-game-tools{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+.admin-game-tools .small{grid-column:1/-1}.admin-game-tools button{width:100%;min-height:44px}
+.moderator-pause{min-width:112px}
+@media(max-width:640px){
+  .room-game-bar{padding:8px 9px;border-radius:14px;margin-bottom:6px}.room-game-meta strong{font-size:17px}.room-admin-btn{width:38px;height:38px;flex-basis:38px;border-radius:11px;font-size:20px}
+  .cohost-panel{left:0;right:0;top:auto;bottom:0;width:100%;max-height:78dvh;border-radius:22px 22px 0 0;padding:14px 12px calc(14px + env(safe-area-inset-bottom));z-index:110;box-shadow:0 -18px 50px rgba(0,0,0,.5)}
+  .cohost-panel .manage-head{position:sticky;top:-14px;background:linear-gradient(180deg,#111b33 78%,rgba(17,27,51,.94));padding:10px 0 8px;z-index:2}
+  .kalim-actions{justify-content:center!important}.kalim-actions .moderator-pause{flex:0 1 150px}
+}
