@@ -479,7 +479,7 @@ async function playSlot(slot){
     const f=card.useBack?card.b:card.a,o=card.useBack?card.a:card.b;
     hand.splice(idx,1);
     k.stacks[slot].push({letter:f,other:o,ownerUid:user.uid,card});
-    k.turnPlay={uid:user.uid,slot};
+    k.turnPlay={uid:user.uid,slot,cardId:card.id||null};
     if(k.lastPenaltyDraws)delete k.lastPenaltyDraws[user.uid];
     if(hand.length===0){
       k.pendingWinnerUid=k.pendingWinnerUid||user.uid;
@@ -510,7 +510,7 @@ async function confirmStarLetter(){
     }
     hand.splice(sc.cardIndex,1);
     k.stacks[sc.slot].push({letter,other:o,ownerUid:user.uid,card});
-    k.turnPlay={uid:user.uid,slot:sc.slot};
+    k.turnPlay={uid:user.uid,slot:sc.slot,cardId:card.id||null};
     if(k.lastPenaltyDraws)delete k.lastPenaltyDraws[user.uid];
     k.starChoice=null;
     if(hand.length===0){
@@ -583,6 +583,64 @@ function undoAutomaticPenaltyFor(k,uid){
   return true;
 }
 
+// نحفظ آخر بطاقة ثبتها كل لاعب عند إنهاء دوره، حتى يكون "إرجاع الدور" Undo كاملًا للدور السابق.
+function rememberCompletedKalimPlay(k,uid){
+  if(!k||!uid||k.turnPlay?.uid!==uid)return false;
+  const slot=k.turnPlay.slot;
+  const stack=k.stacks?.[slot];
+  if(!stack||stack.length<=1)return false;
+  const cardId=k.turnPlay.cardId||stack[stack.length-1]?.card?.id||null;
+  if(!cardId)return false;
+  k.lastTurnPlays=k.lastTurnPlays||{};
+  k.lastTurnPlays[uid]={uid,slot,cardId,roundNumber:k.roundNumber||1,completedAt:Date.now()};
+  return true;
+}
+
+function undoLastCompletedKalimPlayFor(k,uid){
+  const info=k?.lastTurnPlays?.[uid];
+  if(!info||info.uid!==uid)return false;
+  const stack=k.stacks?.[info.slot];
+  if(!stack)return false;
+  const idx=stack.findIndex(entry=>entry?.ownerUid===uid&&entry?.card?.id===info.cardId);
+  if(idx<=0){
+    delete k.lastTurnPlays[uid];
+    return false;
+  }
+  const [entry]=stack.splice(idx,1);
+  if(!entry?.card){
+    delete k.lastTurnPlays[uid];
+    return false;
+  }
+  k.hands[uid]=k.hands[uid]||[];
+  k.hands[uid].push(entry.card);
+  delete k.lastTurnPlays[uid];
+  if(k.pendingWinnerUid===uid){k.pendingWinnerUid=null;k.pendingWinnerPlay=null;}
+  if(k.winnerUid===uid){k.winnerUid=null;k.winningPlay=null;}
+  return true;
+}
+
+function undoActiveKalimPlayFor(k,uid){
+  const tp=k?.turnPlay;
+  if(!tp||tp.uid!==uid)return false;
+  const stack=k.stacks?.[tp.slot];
+  if(!stack||stack.length<=1)return false;
+  let idx=-1;
+  if(tp.cardId)idx=stack.findIndex(entry=>entry?.ownerUid===uid&&entry?.card?.id===tp.cardId);
+  if(idx<0){
+    const top=stack[stack.length-1];
+    if(top?.ownerUid===uid&&top?.card)idx=stack.length-1;
+  }
+  if(idx<=0)return false;
+  const [entry]=stack.splice(idx,1);
+  if(!entry?.card)return false;
+  k.hands[uid]=k.hands[uid]||[];
+  k.hands[uid].push(entry.card);
+  k.turnPlay=null;
+  if(k.pendingWinnerUid===uid){k.pendingWinnerUid=null;k.pendingWinnerPlay=null;}
+  if(k.winnerUid===uid){k.winnerUid=null;k.winningPlay=null;}
+  return true;
+}
+
 // إذا كانت آخر بطاقة للاعب هي التي جعلته ينهي أوراقه، نحتفظ بها حتى نهاية الجولة.
 // عند رفض الكلمة وإرجاع دوره، تعاد نفس البطاقة إلى يده حتى لو غطاها لاعب آخر لاحقًا.
 function undoKalimFinishingPlayFor(k,uid){
@@ -638,6 +696,7 @@ async function bell(){
     const n=Date.now();
     if(!k.bellStopped){
       k.remainingMs=k.timerRunning?Math.max(0,(k.deadline||n)-n):(k.remainingMs||0);
+      rememberCompletedKalimPlay(k,user.uid);
       const penalized=applyAutomaticPenalty(k,user.uid);
       k.timerRunning=false;k.bellStopped=true;k.transitionAt=n+2000;
       k.lastAction=penalized
@@ -692,13 +751,25 @@ async function returnKalimTurnTo(uid){
     if(k.winnerUid&&uid!==k.winnerUid)return k;
     const idx=(k.order||[]).indexOf(uid);if(idx<0)return k;
     const ms=k.timerMs||14000,n=Date.now();
-    const finishingCardReturned=undoKalimFinishingPlayFor(k,uid);
-    const penaltyReturned=undoAutomaticPenaltyFor(k,uid);
+
+    // إذا كان اللاعب أنهى دوره ببطاقة، تعاد نفس البطاقة تلقائيًا عند إرجاع دوره.
+    // وإذا كان لم يلعب وسحب عقوبة، تعاد بطاقة العقوبة بدلًا منها.
+    const currentEndedTurn=(k.currentUid===uid&&!!k.transitionAt);
+    const returningPastTurn=(k.currentUid!==uid)||currentEndedTurn||!!k.winnerUid;
+    let playedCardReturned=false;
+    if(k.currentUid===uid&&!k.transitionAt&&k.turnPlay?.uid===uid){
+      playedCardReturned=undoActiveKalimPlayFor(k,uid);
+    }else if(returningPastTurn){
+      playedCardReturned=undoLastCompletedKalimPlayFor(k,uid);
+      if(!playedCardReturned)playedCardReturned=undoKalimFinishingPlayFor(k,uid);
+    }
+    const penaltyReturned=playedCardReturned?false:undoAutomaticPenaltyFor(k,uid);
+
     k.winnerUid=null;k.winningPlay=null;
     if(k.pendingWinnerUid===uid){k.pendingWinnerUid=null;k.pendingWinnerPlay=null;}
     k.currentIndex=idx;k.currentUid=uid;k.remainingMs=ms;k.deadline=n+ms;k.timerRunning=true;k.bellStopped=false;k.transitionAt=null;k.turnPlay=null;k.starChoice=null;
-    k.lastAction=finishingCardReturned
-      ?`تم إرجاع دور ${members[uid]?.name||'اللاعب'} وإعادة آخر بطاقة أنهى بها أوراقه`
+    k.lastAction=playedCardReturned
+      ?`تم إرجاع دور ${members[uid]?.name||'اللاعب'} وإعادة البطاقة التي نزلها في دوره السابق`
       :penaltyReturned
         ?`تم إرجاع الدور إلى ${members[uid]?.name||'اللاعب'} وإرجاع بطاقة العقوبة تلقائيًا`
         :`تم إرجاع الدور إلى ${members[uid]?.name||'اللاعب'}`;
@@ -723,6 +794,7 @@ async function tickKalimClock(){
     }
     if(k.timerRunning&&(k.deadline||0)<=n){
       const timedOutUid=k.currentUid;
+      rememberCompletedKalimPlay(k,timedOutUid);
       const penalized=applyAutomaticPenalty(k,timedOutUid);
       k.timerRunning=false;k.remainingMs=0;k.bellStopped=true;k.transitionAt=n+2000;k.starChoice=null;
       const who=members[timedOutUid]?.name||'اللاعب';

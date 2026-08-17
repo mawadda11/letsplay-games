@@ -676,6 +676,7 @@
   let stacks = [];
   let drawDeck = [];
   let lastPenaltyDraws = [];
+  let lastTurnPlays = [];
 
   const els = {
     startModal: document.getElementById("startModal"),
@@ -886,7 +887,7 @@
             const owner = removed.owner ?? viewerIndex;
             if(owner !== currentPlayer){toast("يمكن إرجاع البطاقة التي نزلتها في هذا الدور فقط.");return;}
             stack.pop();
-            hands[owner].push({front:removed.front, back:removed.back, useBack:false});
+            hands[owner].push(removed.card || {front:removed.front, back:removed.back, useBack:false});
             playedSlotThisTurn = null;
             toast(`أُعيد حرف "${removed.front}" ويمكنك اختيار بطاقة ثانية.`);
             renderAll();
@@ -906,7 +907,7 @@
         const back = inactiveFace(chosen);
 
         hands[viewerIndex].splice(selectedIndex, 1);
-        stack.push({front, back, owner:viewerIndex});
+        stack.push({front, back, owner:viewerIndex, card:chosen});
         playedSlotThisTurn = slotIndex;
         if(lastPenaltyDraws[viewerIndex]) lastPenaltyDraws[viewerIndex] = null;
         selectedIndex = null;
@@ -985,6 +986,38 @@
     return true;
   }
 
+  function rememberCompletedLocalPlay(playerIndex){
+    if(playedSlotThisTurn === null) return false;
+    const stack = stacks[playedSlotThisTurn];
+    const entry = stack?.[stack.length-1];
+    if(!entry || entry.owner !== playerIndex || !entry.card) return false;
+    lastTurnPlays[playerIndex] = {slot:playedSlotThisTurn, entry};
+    return true;
+  }
+
+  function undoLastCompletedLocalPlay(playerIndex){
+    const info = lastTurnPlays[playerIndex];
+    if(!info) return false;
+    const stack = stacks[info.slot];
+    const idx = stack ? stack.indexOf(info.entry) : -1;
+    if(idx <= 0){ lastTurnPlays[playerIndex] = null; return false; }
+    const [entry] = stack.splice(idx,1);
+    hands[playerIndex].push(entry.card || {front:entry.front, back:entry.back, useBack:false});
+    lastTurnPlays[playerIndex] = null;
+    return true;
+  }
+
+  function undoActiveLocalPlay(playerIndex){
+    if(playerIndex !== currentPlayer || playedSlotThisTurn === null) return false;
+    const stack = stacks[playedSlotThisTurn];
+    const entry = stack?.[stack.length-1];
+    if(!entry || entry.owner !== playerIndex || !entry.card) return false;
+    stack.pop();
+    hands[playerIndex].push(entry.card);
+    playedSlotThisTurn = null;
+    return true;
+  }
+
   function clearTransition(){
     if(transitionHandle){ clearTimeout(transitionHandle); transitionHandle = null; }
   }
@@ -1023,6 +1056,7 @@
         bellStopped = true;
         els.pauseBtn.textContent = "▶ استكمال";
         softBeep();
+        rememberCompletedLocalPlay(currentPlayer);
         const penalized = applyAutomaticPenalty(currentPlayer);
         toast(penalized
           ? `انتهى وقت ${playerNames[currentPlayer]} بدون بطاقة، فسحب بطاقة تلقائيًا.`
@@ -1056,6 +1090,7 @@
       return hand;
     });
     lastPenaltyDraws = Array.from({length:requested},()=>null);
+    lastTurnPlays = Array.from({length:requested},()=>null);
 
     const start = START_WORDS[randInt(START_WORDS.length)];
     stacks = start.map(letter => [{
@@ -1105,6 +1140,7 @@
       running = false;
       bellStopped = true;
       els.pauseBtn.textContent = "▶ استكمال";
+      rememberCompletedLocalPlay(currentPlayer);
       const penalized = applyAutomaticPenalty(currentPlayer);
       toast(penalized
         ? `${playerNames[currentPlayer]} أنهى دوره بدون بطاقة، فسحب بطاقة تلقائيًا.`
@@ -1125,7 +1161,11 @@
       btn.innerHTML = `${name}<small>${index === currentPlayer ? "الدور الحالي" : "إرجاع الدور لهذا اللاعب"}</small>`;
 
       btn.addEventListener("click", () => {
-        const penaltyReturned = undoAutomaticPenalty(index);
+        const wasCurrent = index === currentPlayer;
+        const playedCardReturned = wasCurrent && !bellStopped
+          ? undoActiveLocalPlay(index)
+          : undoLastCompletedLocalPlay(index);
+        const penaltyReturned = playedCardReturned ? false : undoAutomaticPenalty(index);
         currentPlayer = index;
         viewerIndex = index; // local pass-and-play simulation
         selectedIndex = null;
@@ -1136,9 +1176,11 @@
         bellStopped = false;
         els.pauseBtn.textContent = "⏸ إيقاف";
         els.turnPickerBackdrop.classList.remove("open");
-        toast(penaltyReturned
-          ? `تم إرجاع الدور إلى ${playerNames[currentPlayer]} وإرجاع بطاقة العقوبة تلقائيًا.`
-          : `تم إرجاع الدور إلى ${playerNames[currentPlayer]} وبدأ له ${timerSeconds} ثانية.`);
+        toast(playedCardReturned
+          ? `تم إرجاع الدور إلى ${playerNames[currentPlayer]} وإعادة البطاقة التي نزلها في دوره السابق.`
+          : penaltyReturned
+            ? `تم إرجاع الدور إلى ${playerNames[currentPlayer]} وإرجاع بطاقة العقوبة تلقائيًا.`
+            : `تم إرجاع الدور إلى ${playerNames[currentPlayer]} وبدأ له ${timerSeconds} ثانية.`);
         renderAll();
       });
 

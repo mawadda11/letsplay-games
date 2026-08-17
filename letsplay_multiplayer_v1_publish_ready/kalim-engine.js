@@ -40,7 +40,7 @@ export function createKalimState(memberEntries,timerSeconds=14){
   return {
     phase:"playing",order,currentIndex:0,currentUid:order[0],hands,deck:deck.slice(di),stacks,
     timerMs,timerRunning:true,bellStopped:false,remainingMs:timerMs,deadline:Date.now()+timerMs,
-    transitionAt:null,turnPlay:null,starChoice:null,lastPenaltyDraws:{},
+    transitionAt:null,turnPlay:null,starChoice:null,lastPenaltyDraws:{},lastTurnPlays:{},
     roundStartIndex:0,roundNumber:1,pendingWinnerUid:null,pendingWinnerPlay:null,
     winnerUid:null,winningPlay:null,lastAction:"بدأت الجولة"
   };
