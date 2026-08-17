@@ -107,4 +107,3 @@ button.pill{color:#d9e1f8;cursor:pointer}
 .return-turn-option{width:100%;background:#111b33;border:1px solid var(--line);border-radius:13px;padding:11px;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:right}
 .return-turn-option.current{border-color:var(--gold)}
 .return-turn-option:disabled{opacity:.55}
-#undoLastDrawBtn{border-color:#5b4a22;color:#ffe8a3}
