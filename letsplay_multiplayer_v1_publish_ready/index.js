@@ -9,9 +9,9 @@ $("createBtn").onclick=async()=>{
     for(let i=0;i<8;i++){const c=randomRoomCode();const s=await get(ref(db,`rooms/${c}/meta`));if(!s.exists()){code=c;break;}}
     if(!code)throw new Error("تعذر إنشاء كود فريد، حاولي مرة ثانية.");
     const createdAt=now();
+    // The room owner is always the first conceptual player in secret-player games.
+    // Their private player device is paired from the lobby so secrets never appear on the shared display.
     await set(ref(db,`rooms/${code}/meta`),{ownerUid:u.uid,ownerName,game,variant:game==="top10"?variant:"online",createdAt,status:"lobby",round:0});
-    // In Kalim the room owner is a real player and counts toward the minimum of two.
-    if(game==="kalim")await set(ref(db,`rooms/${code}/members/${u.uid}`),{name:ownerName,joinedAt:createdAt,online:true,role:"owner"});
     location.href=`display.html?room=${code}`;
   }catch(e){$("createNotice").textContent="خطأ: "+e.message;$("createBtn").disabled=false;}
 };

@@ -1,17 +1,34 @@
 import { db, ensureAuth, ref, get, set, update, remove, onValue, push, runTransaction, onDisconnect } from "./firebase.js";
 import { activeFace, otherFace } from "./kalim-engine.js";
 import { $, roomCodeFromUrl, escapeHtml, now } from "./common.js";
-const room=roomCodeFromUrl();let user,meta,me,members={},selectedCard=null,selectedVote=null,lastPublic=null;
+const room=roomCodeFromUrl();const ownerToken=new URLSearchParams(location.search).get("ownerToken");let user,meta,me,members={},selectedCard=null,selectedVote=null,lastPublic=null;
 const rr=p=>ref(db,`rooms/${room}${p?'/'+p:''}`);
-async function boot(){if(!room){$("joinMsg").textContent='كود الغرفة غير موجود';return;}user=await ensureAuth();const ms=await get(rr('meta'));if(!ms.exists()){$("joinMsg").textContent='الغرفة غير موجودة';return;}meta=ms.val();$("joinRoomLabel").textContent=room;if(meta.game==='top10'){$("joinStage").innerHTML='<div class="stage"><h2>Top 10 لا تحتاج دخول لاعب</h2><div class="muted">ارجع للشاشة المشتركة. إذا كنت حكم Top 10 استخدم رابط الحكم الخاص الذي يظهر للهوست.</div></div>';return;}const old=(await get(rr(`members/${user.uid}`))).val();if(old){me=old;$("joinStage").classList.add('hidden');$("playerApp").classList.remove('hidden');startListeners();}}
+async function boot(){
+  if(!room){$("joinMsg").textContent='كود الغرفة غير موجود';return;}
+  user=await ensureAuth();const ms=await get(rr('meta'));if(!ms.exists()){$("joinMsg").textContent='الغرفة غير موجودة';return;}meta=ms.val();$("joinRoomLabel").textContent=room;
+  if(meta.game==='top10'){$("joinStage").innerHTML='<div class="stage"><h2>Top 10 لا تحتاج دخول لاعب</h2><div class="muted">ارجع للشاشة المشتركة. إذا كنت حكم Top 10 استخدم رابط الحكم الخاص الذي يظهر للهوست.</div></div>';return;}
+  const old=(await get(rr(`members/${user.uid}`))).val();
+  if(old){me=old;$("joinStage").classList.add('hidden');$("playerApp").classList.remove('hidden');startListeners();return;}
+  if(ownerToken){await joinAsOwnerPlayer(ownerToken);return;}
+}
+async function joinAsOwnerPlayer(token){
+  if(meta.status!=='lobby'){$("joinStage").innerHTML='<div class="stage"><h2>بدأت اللعبة</h2><div class="muted">ربط جوال الهوست يتم قبل بدء اللعبة.</div></div>';return;}
+  $("joinStage").innerHTML=`<div class="stage"><h2>👑 ربط جوال الهوست</h2><div class="muted">جاري ربط هذا الجوال باسم ${escapeHtml(meta.ownerName||'الهوست')}…</div><div class="notice" id="ownerPairMsg">لا تغلق الصفحة.</div></div>`;
+  await set(rr(`ownerPlayerJoin/${user.uid}`),{token,requestedAt:now()});
+  const stop=onValue(rr(`members/${user.uid}`),snap=>{
+    const v=snap.val();if(!v||v.role!=='owner')return;
+    me=v;stop();$("joinStage").classList.add('hidden');$("playerApp").classList.remove('hidden');startListeners();
+  });
+}
+
 $("joinRoomBtn").onclick=async()=>{try{const name=$("playerName").value.trim();if(!name)throw new Error('اكتب اسمك');const ms=(await get(rr('meta'))).val();if(ms.status!=='lobby')throw new Error('بدأت اللعبة بالفعل ولا يمكن دخول لاعب جديد الآن.');me={name,joinedAt:now(),online:true};await set(rr(`members/${user.uid}`),me);onDisconnect(rr(`members/${user.uid}/online`)).set(false);$("joinStage").classList.add('hidden');$("playerApp").classList.remove('hidden');startListeners();}catch(e){$("joinMsg").textContent=e.message;}};
 function startListeners(){update(rr(`members/${user.uid}`),{online:true});onValue(rr('members'),s=>{members=s.val()||{};if(!members[user.uid]){$("playerApp").innerHTML='<div class="stage"><h2>تم إخراجك من الغرفة</h2></div>';return;}me=members[user.uid]||me;refreshCohostUi();render();});onValue(rr('meta'),s=>{meta=s.val()||meta;refreshCohostUi();render();});if(meta.game==='atrash'){onValue(rr('public/atrash'),s=>{lastPublic=s.val();renderAtrash(lastPublic)});onValue(rr(`private/${user.uid}`),()=>renderAtrash(lastPublic));}if(meta.game==='kalim'){onValue(rr('public/kalim'),s=>{lastPublic=s.val();renderKalim(lastPublic)});onValue(rr('chat'),s=>renderChat(s.val()||{}));}if(meta.game==='top10')renderTop10Player();}
 function render(){if(meta?.status==='lobby'){renderLobby();return;}if(meta?.game==='atrash'){if(lastPublic)renderAtrash(lastPublic);else $("playerApp").innerHTML='<div class="stage"><h2>بدأت اللعبة</h2><div class="muted">جاري تحميل سؤالك…</div></div>';return;}if(meta?.game==='kalim'){if(lastPublic)renderKalim(lastPublic);return;}if(meta?.game==='top10')renderTop10Player();}
 function renderLobby(){
   const game=meta.game==='atrash'?'الأطرش في الزفة':meta.game==='kalim'?'كَلِم':'Top 10';
-  const ownerUid=meta?.ownerUid, ownerMember=ownerUid?members[ownerUid]:null;
+  const ownerUid=meta?.ownerPlayerUid||meta?.ownerUid, ownerMember=meta?.ownerPlayerUid?members[meta.ownerPlayerUid]:null;
   let people=`<div class="member ${ownerMember?.online===false?'offline':''}"><b>👑 ${escapeHtml(meta?.ownerName||ownerMember?.name||'الهوست')}</b><span class="small">${ownerMember?.online===false?'غير متصل':'الهوست الأساسي'}</span></div>`;
-  people+=Object.entries(members).filter(([uid])=>uid!==ownerUid).map(([uid,m])=>`<div class="member"><b>${escapeHtml(m.name)} ${m.role==='cohost'?'🛡️':''}</b><span class="small">${m.online===false?'غير متصل':m.role==='cohost'?'هوست مساعد':'متصل'}</span>${me?.role==='cohost'&&uid!==user.uid?`<button class="danger coKick" data-u="${uid}">طرد</button>`:''}</div>`).join('');
+  people+=Object.entries(members).filter(([uid,m])=>uid!==ownerUid&&uid!==meta?.ownerUid&&m?.role!=='owner').map(([uid,m])=>`<div class="member"><b>${escapeHtml(m.name)} ${m.role==='cohost'?'🛡️':''}</b><span class="small">${m.online===false?'غير متصل':m.role==='cohost'?'هوست مساعد':'متصل'}</span>${me?.role==='cohost'&&uid!==user.uid?`<button class="danger coKick" data-u="${uid}">طرد</button>`:''}</div>`).join('');
   $("playerApp").innerHTML=`<div class="panel"><div class="small">الغرفة ${room}</div><h2>${game}</h2><div class="notice">دخلت باسم <b>${escapeHtml(me?.name||'')}</b>. بانتظار بدء اللعبة من الشاشة العامة.</div><div class="member-list">${people}</div></div>`;
   document.querySelectorAll('.coKick').forEach(b=>b.onclick=async()=>{if(confirm('طرد هذا اللاعب؟'))await remove(rr(`members/${b.dataset.u}`));});
 }
@@ -23,7 +40,7 @@ function refreshCohostUi(){
 function renderCohostPanel(){
   const list=$("cohostList");if(!list)return;list.innerHTML="";
   const owner=document.createElement('div');owner.className='member';owner.innerHTML=`<span><b>👑 ${escapeHtml(meta?.ownerName||'الهوست')}</b><div class="small">الهوست الأساسي</div></span><span class="small">لا يمكن طرده</span>`;list.appendChild(owner);
-  Object.entries(members).forEach(([uid,m])=>{if(uid===user.uid||uid===meta?.ownerUid)return;const d=document.createElement('div');d.className='member';d.innerHTML=`<span><b>${escapeHtml(m.name)}</b><div class="small">${m.role==='cohost'?'هوست مساعد':'لاعب'}</div></span><button class="danger cohostKick" data-u="${uid}">طرد</button>`;list.appendChild(d);});
+  Object.entries(members).forEach(([uid,m])=>{if(uid===user.uid||uid===meta?.ownerUid||uid===meta?.ownerPlayerUid||m?.role==='owner')return;const d=document.createElement('div');d.className='member';d.innerHTML=`<span><b>${escapeHtml(m.name)}</b><div class="small">${m.role==='cohost'?'هوست مساعد':'لاعب'}</div></span><button class="danger cohostKick" data-u="${uid}">طرد</button>`;list.appendChild(d);});
   document.querySelectorAll('.cohostKick').forEach(b=>b.onclick=async()=>{if(confirm('طرد هذا اللاعب؟'))await remove(rr(`members/${b.dataset.u}`));});
   const extra=$("cohostExtra");extra.innerHTML=meta?.game==='kalim'?'<button class="secondary" id="cohostReturnTurn" style="width:100%;margin-top:8px">↩ إرجاع الدور لأي لاعب</button>':'';
   const rb=$("cohostReturnTurn");if(rb)rb.onclick=cohostReturnKalimTurn;
