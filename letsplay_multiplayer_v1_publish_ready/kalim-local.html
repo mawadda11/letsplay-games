@@ -522,18 +522,23 @@
       padding:8px 10px;font-size:11px;font-weight:900;
       box-shadow:0 8px 22px rgba(0,0,0,.25)
     }
-    @media(max-width:520px){.launcher-back{top:auto;bottom:calc(10px + var(--safe-bottom));left:10px}}
+    .launcher-home{left:94px}
+    @media(max-width:520px){.launcher-back{top:auto;bottom:calc(10px + var(--safe-bottom));left:10px}.launcher-home{left:94px}}
+    .timer-stepper-local{display:grid;grid-template-columns:46px minmax(86px,1fr) 46px;gap:7px;align-items:stretch}
+    .timer-stepper-local button{border:1px solid var(--line);background:#111b33;color:#fff;border-radius:11px;font-size:23px;font-weight:900}
+    .timer-stepper-local>div{background:var(--panel3);border:1px solid var(--line);border-radius:11px;padding:7px;display:flex;align-items:baseline;justify-content:center;gap:5px}
+    .timer-stepper-local b{font-size:24px;color:var(--gold)}.timer-stepper-local span{font-size:10px;color:var(--muted)}
+
     </style>
     
 </head>
 
-<body><a class="launcher-back" href="local.html">← الألعاب</a>
+<body><a class="launcher-back" href="local.html">← الألعاب</a><a class="launcher-back launcher-home" href="index.html">الرئيسية</a>
   <div class="start-modal" id="startModal">
     <div class="start-card">
       <div class="start-title">كَلِم</div>
       <div class="start-sub">
-        نسخة تجريبية محلية للجوال. اختاري عدد اللاعبين وابدئي جولة جديدة.
-        كل جولة تعيد خلط وتوزيع البطاقات عشوائيًا. في هذه النسخة المحلية تنتقل "اليد" تلقائيًا مع صاحب الدور حتى تقدري تختبري كل اللاعبين على جهاز واحد.
+        نسخة اللعب على جهاز واحد. اختاري عدد اللاعبين ووقت الدور، ثم مرري الجهاز مع انتقال الدور بين اللاعبين.
       </div>
 
       <div class="start-row">
@@ -547,9 +552,11 @@
         </div>
         <div class="field">
           <label>وقت الدور</label>
-          <select id="timerSecondsInput">
-            <option>9</option><option>10</option><option>11</option><option>12</option><option>13</option><option selected>14</option><option>15</option>
-          </select>
+          <div class="timer-stepper-local">
+            <button type="button" id="timerMinusLocal">−</button>
+            <div><b id="timerSecondsValue">14</b><span>ثانية</span></div>
+            <button type="button" id="timerPlusLocal">+</button>
+          </div>
         </div>
       </div>
 
@@ -658,6 +665,7 @@
   let viewerIndex = 0;
   let currentPlayer = 0;
   let selectedIndex = null;
+  let playedSlotThisTurn = null;
 
   let timerSeconds = 14;
   let timeLeft = 14;
@@ -674,7 +682,9 @@
     startBtn: document.getElementById("startBtn"),
     playerNameInput: document.getElementById("playerNameInput"),
     playerCountInput: document.getElementById("playerCountInput"),
-    timerSecondsInput: document.getElementById("timerSecondsInput"),
+    timerMinusLocal: document.getElementById("timerMinusLocal"),
+    timerPlusLocal: document.getElementById("timerPlusLocal"),
+    timerSecondsValue: document.getElementById("timerSecondsValue"),
     opponents: document.getElementById("opponents"),
     mycards: document.getElementById("mycards"),
     myName: document.getElementById("myName"),
@@ -714,32 +724,30 @@
     return BALANCED_POOL[randInt(BALANCED_POOL.length)];
   }
 
-  function makeCard(){
-    // Small chance of star on one face; avoid star-star.
-    const starChance = Math.random() < 0.045;
-    let a = starChance ? "★" : randomLetter();
+  function makeCard(forceStar=false){
+    let a = forceStar ? "★" : randomLetter();
     let b = randomLetter();
-
     while(b === a) b = randomLetter();
-
-    if(Math.random() < 0.5){
-      return {front:a, back:b, useBack:false};
-    }
+    if(Math.random() < 0.5)return {front:a, back:b, useBack:false};
     return {front:b, back:a, useBack:false};
+  }
+
+  function makeDeckBatch(count){
+    const stars=Math.max(1,Math.round(count/16));
+    return shuffle([
+      ...Array.from({length:stars},()=>makeCard(true)),
+      ...Array.from({length:Math.max(0,count-stars)},()=>makeCard(false))
+    ]);
   }
 
   function refillDeckIfNeeded(){
     if(drawDeck.length >= 60) return;
-    const batch = [];
-    for(let i=0;i<180;i++) batch.push(makeCard());
-    drawDeck.push(...shuffle(batch));
+    drawDeck.push(...makeDeckBatch(180));
   }
 
   function buildInitialDeck(playerCount){
-    drawDeck = [];
     const need = playerCount * 10 + 180;
-    for(let i=0;i<need;i++) drawDeck.push(makeCard());
-    shuffle(drawDeck);
+    drawDeck = makeDeckBatch(need);
   }
 
   function drawCard(){
@@ -805,6 +813,10 @@
         toast(`الدور الآن لـ ${playerNames[currentPlayer]} — لا يمكن اللعب من يد ${playerNames[viewerIndex]}.`);
         return;
       }
+      if(playedSlotThisTurn !== null){
+        toast("نزلت بطاقة واحدة في هذا الدور. إذا كانت بالخطأ، أرجعها أولًا من الوسط.");
+        return;
+      }
       const now = Date.now();
 
       if(now - lastTap < 320){
@@ -854,7 +866,7 @@
       const top = stack[stack.length - 1];
 
       const slot = document.createElement("div");
-      slot.className = "slot" + (selectedIndex !== null ? " target" : "");
+      slot.className = "slot" + (selectedIndex !== null ? " target" : "") + (playedSlotThisTurn === slotIndex ? " selected" : "");
 
       const shown = {front:top.front, back:top.back, useBack:false};
 
@@ -870,18 +882,24 @@
           return;
         }
         if(selectedIndex === null){
-          if(stack.length > 1){
-            const removed = stack.pop();
+          if(playedSlotThisTurn === slotIndex && stack.length > 1){
+            const removed = stack[stack.length-1];
             const owner = removed.owner ?? viewerIndex;
+            if(owner !== currentPlayer){toast("يمكن إرجاع البطاقة التي نزلتها في هذا الدور فقط.");return;}
+            stack.pop();
             hands[owner].push({front:removed.front, back:removed.back, useBack:false});
-            toast(`أُعيد حرف "${removed.front}" إلى يد ${playerNames[owner]}`);
+            playedSlotThisTurn = null;
+            toast(`أُعيد حرف "${removed.front}" ويمكنك اختيار بطاقة ثانية.`);
             renderAll();
+          }else if(playedSlotThisTurn !== null){
+            toast("إذا كانت البطاقة بالخطأ، اضغط نفس البطاقة التي نزلتها في الوسط لإرجاعها.");
           }else{
-            toast("هذه بطاقة البداية الأساسية.");
+            toast("اختاري بطاقة من يدك أولًا.");
           }
           return;
         }
 
+        if(playedSlotThisTurn !== null){toast("مسموح ببطاقة واحدة فقط في كل دور.");return;}
         const chosen = hands[viewerIndex][selectedIndex];
         if(!chosen) return;
 
@@ -890,9 +908,10 @@
 
         hands[viewerIndex].splice(selectedIndex, 1);
         stack.push({front, back, owner:viewerIndex});
+        playedSlotThisTurn = slotIndex;
         selectedIndex = null;
 
-        toast(`تم وضع حرف "${front}" بدل الحرف الموجود في هذه الخانة.`);
+        toast(`تم وضع حرف "${front}". لو كانت البطاقة بالخطأ اضغطها في الوسط لإرجاعها.`);
         renderAll();
       });
 
@@ -915,7 +934,7 @@
 
   function renderAll(){
     els.turnLabel.textContent = "دور " + playerNames[currentPlayer];
-    els.drawBtn.disabled = viewerIndex !== currentPlayer;
+    els.drawBtn.disabled = false;
     renderOpponents();
     renderMyHand();
     renderWord();
@@ -955,6 +974,7 @@
     running = true;
     bellStopped = false;
     selectedIndex = null;
+    playedSlotThisTurn = null;
     els.pauseBtn.textContent = "⏸ إيقاف";
     toast(auto ? `بدأ وقت ${playerNames[currentPlayer]} تلقائيًا.` : `بدأ وقت ${playerNames[currentPlayer]}.`);
     renderAll();
@@ -996,7 +1016,7 @@
     viewerIndex = 0;
     currentPlayer = 0;
     selectedIndex = null;
-    timerSeconds = Math.max(9, Math.min(15, Number(els.timerSecondsInput.value || 14)));
+    playedSlotThisTurn = null;
     timeLeft = timerSeconds;
     running = true;
     bellStopped = false;
@@ -1023,6 +1043,15 @@
     toast("بدأت الجولة. التوزيع والسحب عشوائيان.");
     renderAll();
   }
+
+  function syncLocalTimerSetting(){
+    els.timerSecondsValue.textContent=String(timerSeconds);
+    els.timerMinusLocal.disabled=timerSeconds<=9;
+    els.timerPlusLocal.disabled=timerSeconds>=15;
+  }
+  els.timerMinusLocal.addEventListener("click",()=>{timerSeconds=Math.max(9,timerSeconds-1);syncLocalTimerSetting();});
+  els.timerPlusLocal.addEventListener("click",()=>{timerSeconds=Math.min(15,timerSeconds+1);syncLocalTimerSetting();});
+  syncLocalTimerSetting();
 
   els.startBtn.addEventListener("click", setNewRound);
 
@@ -1057,10 +1086,6 @@
   });
 
   els.drawBtn.addEventListener("click", () => {
-    if(viewerIndex !== currentPlayer){
-      toast(`فقط ${playerNames[currentPlayer]} يقدر يسحب الآن.`);
-      return;
-    }
     refillDeckIfNeeded();
     hands[viewerIndex].push(drawCard());
     toast("سحبتِ بطاقة جديدة.");
@@ -1080,6 +1105,7 @@
         currentPlayer = index;
         viewerIndex = index; // local pass-and-play simulation
         selectedIndex = null;
+        playedSlotThisTurn = null;
         clearTransition();
         timeLeft = timerSeconds;
         running = true;

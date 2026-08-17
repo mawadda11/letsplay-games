@@ -79,3 +79,26 @@ button,.primary,.secondary,.vote-option{touch-action:manipulation;-webkit-tap-hi
   .owner-lobby-controls,.lobby-owner-tools{display:grid;grid-template-columns:1fr}
   .cohost-fab{bottom:calc(16px + env(safe-area-inset-bottom))}
 }
+
+/* v7 product polish */
+.top-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+button.pill{color:#d9e1f8;cursor:pointer}
+.invite-pill{white-space:nowrap}
+.notice:empty,.status-message:empty{display:none!important}
+.status-message{margin-top:8px;font-size:11px;line-height:1.6;color:var(--muted);min-height:0}
+.status-message[data-kind="ok"]{color:var(--green)}
+.status-message[data-kind="bad"]{color:var(--red)}
+.game-status{font-size:10px;color:var(--muted);min-height:16px;margin:5px 0 1px}
+.turn-hint{font-size:10px;color:#ffe7a3;margin:4px auto 0;max-width:680px}
+.word-slot:disabled{opacity:1;cursor:default}
+.word-slot.undoable .game-card-letter{outline:4px solid var(--gold);cursor:pointer}
+.hand .game-card-letter:disabled{opacity:.62;cursor:default}
+.kalim-actions{align-items:center}
+.star-choice-backdrop{position:fixed;inset:0;z-index:120;background:rgba(2,6,14,.76);backdrop-filter:blur(7px);display:grid;place-items:center;padding:14px}
+.star-choice-card{width:min(420px,100%);background:linear-gradient(180deg,#14213d,#0d1629);border:1px solid var(--line);border-radius:24px;padding:20px;box-shadow:var(--shadow);text-align:center}
+.star-choice-card h3{margin:4px 0 6px;font-size:23px}.star-choice-card p{margin:0 0 12px;color:var(--muted);font-size:12px;line-height:1.7}
+.star-choice-icon{font-size:46px;color:var(--gold)}.star-grace{font-size:12px;color:var(--gold);font-weight:900;margin-bottom:10px}
+.star-choice-card input{width:100%;background:var(--panel3);color:#fff;border:1px solid var(--line);border-radius:13px;padding:13px;text-align:center;font-size:25px;outline:none}
+.star-choice-card input:focus{border-color:var(--gold)}
+.star-choice-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+@media(max-width:560px){.top-actions{gap:5px}.top-actions .pill{padding:5px 7px;font-size:9px}.star-choice-card{padding:16px;border-radius:19px}.kalim-actions{gap:5px}.kalim-actions button{flex:1 1 42%;min-height:42px}}

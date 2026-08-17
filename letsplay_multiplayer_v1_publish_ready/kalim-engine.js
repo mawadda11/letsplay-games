@@ -1,17 +1,41 @@
 import { KALIM_BALANCED_POOL, KALIM_START_WORDS, ARABIC_LETTERS } from "./data.js";
 import { cryptoRand, shuffle } from "./common.js";
-export function makeKalimCard(){
-  const letter=()=>KALIM_BALANCED_POOL[cryptoRand(KALIM_BALANCED_POOL.length)];
-  let a=Math.random()<0.045?"★":letter(), b=letter(); while(b===a)b=letter();
-  if(Math.random()<.5)[a,b]=[b,a]; return {a,b,useBack:false};
+
+function regularLetter(){ return KALIM_BALANCED_POOL[cryptoRand(KALIM_BALANCED_POOL.length)]; }
+
+export function makeKalimCard(forceStar=false){
+  if(forceStar){
+    const letter=regularLetter();
+    return Math.random()<.5
+      ? {a:"★",b:letter,useBack:false}
+      : {a:letter,b:"★",useBack:false};
+  }
+  let a=regularLetter(), b=regularLetter();
+  while(b===a)b=regularLetter();
+  if(Math.random()<.5)[a,b]=[b,a];
+  return {a,b,useBack:false};
 }
-export function activeFace(c){return c?.useBack?c.b:c.a;} export function otherFace(c){return c?.useBack?c.a:c.b;}
+
+export function activeFace(c){return c?.useBack?c.b:c.a;}
+export function otherFace(c){return c?.useBack?c.a:c.b;}
+
 export function createKalimState(memberEntries,timerSeconds=14){
-  const deck=shuffle(Array.from({length:520},makeKalimCard)); const hands={}; let di=0;
-  for(const [uid] of memberEntries){ hands[uid]=deck.slice(di,di+10); di+=10; }
+  const deckSize=520;
+  // تقريبًا نجمة لكل 16 بطاقة: 32 بطاقة نجمة ثابتة في كل جولة.
+  const starCount=32;
+  const deck=shuffle([
+    ...Array.from({length:starCount},()=>makeKalimCard(true)),
+    ...Array.from({length:deckSize-starCount},()=>makeKalimCard(false))
+  ]);
+  const hands={}; let di=0;
+  for(const [uid] of memberEntries){hands[uid]=deck.slice(di,di+10);di+=10;}
   const word=KALIM_START_WORDS[cryptoRand(KALIM_START_WORDS.length)];
   const stacks=word.map(l=>[{letter:l,other:ARABIC_LETTERS[cryptoRand(ARABIC_LETTERS.length)],ownerUid:null,card:null}]);
   const order=memberEntries.map(([uid])=>uid);
   const timerMs=Math.max(9000,Math.min(15000,Number(timerSeconds||14)*1000));
-  return {phase:"playing",order,currentIndex:0,currentUid:order[0],hands,deck:deck.slice(di),stacks,timerMs,timerRunning:true,bellStopped:false,remainingMs:timerMs,deadline:Date.now()+timerMs,transitionAt:null,winnerUid:null,lastAction:"بدأت الجولة"};
+  return {
+    phase:"playing",order,currentIndex:0,currentUid:order[0],hands,deck:deck.slice(di),stacks,
+    timerMs,timerRunning:true,bellStopped:false,remainingMs:timerMs,deadline:Date.now()+timerMs,
+    transitionAt:null,turnPlay:null,starChoice:null,winnerUid:null,lastAction:"بدأت الجولة"
+  };
 }

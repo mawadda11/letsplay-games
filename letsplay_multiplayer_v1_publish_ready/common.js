@@ -17,6 +17,6 @@ export function shuffle(a){ a=[...a]; for(let i=a.length-1;i>0;i--){const j=Math
 export function rand(n){ return Math.floor(Math.random()*n); }
 export function cryptoRand(n){ if(n<=0)return 0; const a=new Uint32Array(1); crypto.getRandomValues(a); return a[0]%n; }
 export function formatGame(g){ return g==="top10"?"Top 10":g==="atrash"?"الأطرش في الزفة":g==="kalim"?"كَلِم":g; }
-export function formatVariant(v){ return v==="host"?"مع هوست":"بدون هوست"; }
+export function formatVariant(v){ return v==="host"?"مع حكم":"بدون حكم"; }
 export function now(){ return Date.now(); }
 export function toast(el,text,kind=""){ if(!el)return; el.textContent=text; el.dataset.kind=kind; }

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#07101e">
-<title>Let's Play! — v8</title>
+<title>اللعب على جهاز واحد — Let's Play!</title>
 <style>
 :root{
  --bg:#07101e;--panel:#10192e;--panel2:#15213c;--panel3:#0b1428;--line:#2b395f;
@@ -19,7 +19,7 @@ button{cursor:pointer;touch-action:manipulation}
 .app{width:min(1100px,100%);margin:auto;padding:10px 10px calc(18px + var(--safe))}
 .topbar{display:flex;justify-content:space-between;align-items:center;gap:8px;background:rgba(10,18,35,.94);border:1px solid var(--line);border-radius:18px;padding:10px 12px;margin-bottom:10px;position:sticky;top:0;z-index:20;backdrop-filter:blur(12px)}
 .brand{display:flex;align-items:center;gap:9px;font-weight:900;font-size:20px}.logo{width:36px;height:36px;border-radius:11px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center}
-.back{border:1px solid var(--line);background:#111b33;color:#fff;border-radius:10px;padding:7px 10px;font-size:12px}
+.back{border:1px solid var(--line);background:#111b33;color:#fff;border-radius:10px;padding:7px 10px;font-size:12px;text-decoration:none}.top-actions{display:flex;gap:7px;align-items:center}
 .screen{display:none}.screen.active{display:block}
 .hero{padding:18px 4px 10px}.hero h1{font-size:30px;margin:0 0 6px}.hero p{margin:0;color:var(--muted);font-size:13px;line-height:1.7}
 .games{display:grid;grid-template-columns:1fr;gap:12px}.game-card,.section{background:linear-gradient(180deg,#111b33,#0d1629);border:1px solid var(--line);border-radius:22px;padding:16px;box-shadow:var(--shadow)}
@@ -31,7 +31,7 @@ button{cursor:pointer;touch-action:manipulation}
 .field{display:flex;flex-direction:column;gap:5px;margin-bottom:9px}.field label{font-size:11px;color:var(--muted)}
 .field input,.field select,.field textarea{width:100%;background:var(--panel3);color:#fff;border:1px solid var(--line);border-radius:11px;padding:10px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.notice{background:var(--panel3);border:1px solid var(--line);border-radius:11px;padding:8px 10px;color:#d6def6;font-size:11px;margin-top:8px}
+.notice{background:var(--panel3);border:1px solid var(--line);border-radius:11px;padding:8px 10px;color:#d6def6;font-size:11px;margin-top:8px}.notice:empty{display:none}
 .mode-card{flex:1;min-width:130px;background:#111b33;border:1px solid var(--line);border-radius:16px;padding:14px;text-align:center}
 .mode-card.selected{outline:2px solid var(--gold)}.mode-card b{display:block;margin-bottom:4px}.mode-card span{font-size:10px;color:var(--muted)}
 .question-box{background:radial-gradient(circle at 50% 30%,#173b5c,#102947 58%,#0b2038);border:1px solid rgba(255,255,255,.08);border-radius:22px;padding:18px;text-align:center}
@@ -85,24 +85,24 @@ button{cursor:pointer;touch-action:manipulation}
 <body>
 <div class="app">
 <header class="topbar">
-  <div class="brand"><div class="logo">ل</div><span>Let's Play!</span></div>
-  <button class="back hidden" id="backBtn">الرئيسية</button>
+  <div class="brand"><div class="logo">▶</div><span>Let's Play!</span></div>
+  <div class="top-actions"><button class="back hidden" id="backBtn">الألعاب</button><a class="back" href="index.html">الرئيسية</a></div>
 </header>
 
 <section id="home" class="screen active">
   <div class="hero">
-    <h1>اختاروا اللعبة 🎮</h1>
-    <p>ثلاث ألعاب في مكان واحد: كَلِم، Top 10، والأطرش في الزفة.</p>
+    <h1>اللعب على جهاز واحد 🎮</h1>
+    <p>اختاروا اللعبة وابدؤوا مباشرة على نفس الجهاز بدون إنشاء غرفة.</p>
   </div>
   <div class="games">
     <article class="game-card">
       <h2>Top 10</h2>
-      <p>الفريق يكتب الإجابة، والنظام يقترح أقرب تطابق للهوست. الهوست يؤكد قبل كشف المركز واحتساب النقاط.</p>
+      <p>الفريق يكتب الإجابة، والنظام يطابقها تلقائيًا أو يمكن استخدام حكم لتأكيد الإجابات.</p>
       <div class="actions"><button class="primary" data-go="top10Setup">ابدأ</button></div>
     </article>
     <article class="game-card">
       <h2>الأطرش في الزفة</h2>
-      <p>اختاروا محلي أو أونلاين. المحلي: نفس الجوال يتمرر، وكل لاعب يقرأ سؤاله ويكتب جوابه ثم يصوت سرًا.</p>
+      <p>مرروا نفس الجهاز بين اللاعبين؛ كل لاعب يرى سؤاله ويكتب جوابه ثم يصوت بسرية.</p>
       <div class="actions"><button class="primary" data-go="atrashSetup">ابدأ</button></div>
     </article>
     <article class="game-card">
@@ -118,8 +118,8 @@ button{cursor:pointer;touch-action:manipulation}
     <div class="section-title">إعداد Top 10</div>
     <div class="muted">اختاروا طريقة الحكم:</div>
     <div class="top-mode-row">
-      <button class="top-mode selected" id="topAutoMode"><b>⚡ بدون هوست</b><span>مطابقة تلقائية بالقاموس والمرادفات</span></button>
-      <button class="top-mode" id="topHostMode"><b>🎛️ مع هوست</b><span>شاشة عامة + جهاز خاص للهوست</span></button>
+      <button class="top-mode selected" id="topAutoMode"><b>⚡ بدون حكم</b><span>مطابقة تلقائية بالقاموس والمرادفات</span></button>
+      <button class="top-mode" id="topHostMode"><b>🎛️ مع حكم</b><span>الحكم يؤكد الإجابات من لوحة خاصة</span></button>
     </div>
     <div class="grid2">
       <div class="field"><label>الفريق الأول</label><input id="teamAInput" value="الفريق أ"></div>
@@ -127,15 +127,15 @@ button{cursor:pointer;touch-action:manipulation}
     </div>
     <div class="field"><label>عدد الجولات</label><input id="top10Rounds" type="number" min="1" max="50" value="10"></div>
     <div id="hostPrep" class="host-prep hidden">
-      <b>تهيئة جهاز الهوست قبل Share Screen</b>
-      <div class="muted">اعرض رمز الدخول مؤقتًا، افتحه على جهاز الهوست، وبعدها أخفه قبل مشاركة الشاشة. في الربط النهائي بـFirebase سيكون الرابط One-time ويتقفل فور دخول الهوست.</div>
-      <button class="secondary" id="makeHostAccess" style="margin-top:8px">إنشاء QR مؤقت للهوست</button>
+      <b>ربط جهاز الحكم</b>
+      <div class="muted">افتح الرمز على جهاز الحكم، ثم أخفه قبل عرض شاشة اللعبة للفرق.</div>
+      <button class="secondary" id="makeHostAccess" style="margin-top:8px">إنشاء رمز للحكم</button>
       <div id="hostAccess" class="host-access hidden">
         <div class="host-code" id="hostCode"></div>
         <div id="hostQr"></div>
         <div class="host-countdown" id="hostCountdown"></div>
         <div class="toolbar" style="justify-content:center">
-          <a id="hostPrivateLink" class="primary" style="text-decoration:none" target="_blank">فتح لوحة الهوست</a>
+          <a id="hostPrivateLink" class="primary" style="text-decoration:none" target="_blank">فتح لوحة الحكم</a>
           <button class="secondary" id="hideHostAccess">إخفاء الآن</button>
         </div>
       </div>
@@ -162,7 +162,7 @@ button{cursor:pointer;touch-action:manipulation}
     <input id="top10AnswerInput" placeholder="اكتبوا إجابة الفريق الحالي...">
     <button class="primary" id="submitTop10Answer">إرسال</button>
   </div>
-  <div class="notice" id="top10Notice">بدون هوست: النظام يطابق تلقائيًا. مع هوست: الإجابة تذهب إلى جهاز الهوست الخاص للتأكيد.</div>
+  <div class="notice" id="top10Notice">بدون حكم: النظام يطابق تلقائيًا. مع حكم: الإجابة تذهب إلى جهاز الحكم الخاص للتأكيد.</div>
 
   <div class="answers" id="top10Answers"></div>
   <div class="toolbar"><button class="secondary" id="revealAllTop10">إظهار الكل</button><button class="primary" id="nextTop10">السؤال التالي</button></div>
@@ -172,10 +172,10 @@ button{cursor:pointer;touch-action:manipulation}
 <section id="atrashSetup" class="screen">
   <div class="section">
     <div class="section-title">الأطرش في الزفة</div>
-    <div class="muted">اختاروا طريقة اللعب أولًا:</div>
-    <div class="mode-row">
+    <div class="muted">اكتبوا أسماء اللاعبين ثم ابدأوا. نفس الجهاز يمر بينكم.</div>
+    <div class="mode-row hidden">
       <button class="mode-card selected" id="localMode"><b>📱 محلي</b><span>نفس الجوال يتمرر بين اللاعبين</span></button>
-      <button class="mode-card" id="onlineMode"><b>🌐 أونلاين</b><span>كل لاعب من جواله — يحتاج Firebase</span></button>
+      <button class="mode-card" id="onlineMode"><b>🌐 أونلاين</b><span>استخدم الصفحة الرئيسية للعب الأونلاين</span></button>
     </div>
     <div id="localSetupFields">
       <div class="field"><label>أسماء اللاعبين — كل اسم في سطر</label><textarea id="atrashPlayers" rows="7">غيداء
@@ -183,15 +183,15 @@ button{cursor:pointer;touch-action:manipulation}
 سارة
 ريم</textarea></div>
       <div class="field"><label>عدد الجولات</label><input id="atrashRounds" type="number" min="1" max="50" value="10"></div>
-      <button class="primary" id="startAtrashLocal">ابدأ المحلي</button>
+      <button class="primary" id="startAtrashLocal">ابدأ اللعبة</button>
     </div>
     <div id="onlineSetupFields" class="hidden">
       <div class="online-card" style="min-height:300px">
         <div class="online-box">
-          <span class="badge">واجهة جاهزة — الربط الحقيقي لاحقًا</span>
+          <span class="badge">اللعب الأونلاين</span>
           <h2 style="margin:0">اللعب الأونلاين</h2>
-          <div class="muted">سيكون هنا: إنشاء غرفة / الانضمام بكود / كل لاعب من جواله / إرسال الإجابة / ظهور الإجابات / التصويت / النقاط. يحتاج ربط Firebase حتى يعمل بين أجهزة مختلفة.</div>
-          <button class="primary" id="createOnlineMock">معاينة شاشة إنشاء الغرفة</button>
+          <div class="muted">للعب بين أجهزة مختلفة، ارجع إلى الصفحة الرئيسية وأنشئ غرفة أونلاين.</div>
+          <button class="primary" id="createOnlineMock">العودة للرئيسية</button>
         </div>
       </div>
     </div>
@@ -238,14 +238,14 @@ button{cursor:pointer;touch-action:manipulation}
 <section id="onlineMock" class="screen">
   <div class="online-card">
     <div class="online-box">
-      <span class="badge">Online flow prototype</span>
+      <span class="badge">اللعب الأونلاين</span>
       <h2 style="margin:0">غرفة الأطرش</h2>
       <div class="grid2">
         <button class="primary">إنشاء غرفة</button><button class="secondary">الانضمام بكود</button>
       </div>
       <input placeholder="اسم اللاعب">
       <input placeholder="كود الغرفة">
-      <div class="notice">هذه الشاشة فقط لتثبيت التصميم. عند الربط، يتم اختيار الأطرش عشوائيًا من جديد مع كل سؤال. الربط بين الجوالات يحتاج Firebase.</div>
+      <div class="notice">اللعب الأونلاين متاح من الصفحة الرئيسية.</div>
     </div>
   </div>
 </section>
@@ -349,7 +349,7 @@ function markTop10Wrong(){
   if(!endTop10IfNeeded()){nextPlayableTeam();const nextName=state.top10.activeTeam==="A"?state.top10.teamA:state.top10.teamB;$("top10Notice").textContent+=` الدور الآن على ${nextName}.`;}
   renderTeams();publishHostState();
 }
-function nextTop10(){if(state.top10.round>=state.top10.maxRounds){alert("انتهت الجولات");showScreen("home");return}const q=pickUnused(state.top10.pool,state.top10.used);if(!q){alert("خلصت الأسئلة");showScreen("home");return}state.top10.current=q;state.top10.revealed=new Set();state.top10.hearts={A:3,B:3};state.top10.pendingAnswer="";state.top10.pendingMatch=-1;state.top10.round++;state.top10.activeTeam=(state.top10.round%2===1)?"A":"B";$("top10Cat").textContent=q.category||"عام";$("top10Question").textContent=q.question;$("top10Notice").textContent=`بداية الجولة: الدور على ${state.top10.activeTeam==="A"?state.top10.teamA:state.top10.teamB}. ${state.top10.mode==="auto"?"المطابقة تلقائية.":"الإجابة ستذهب لجهاز الهوست الخاص."}`;$("topModeBadge").textContent=state.top10.mode==="auto"?"⚡ بدون هوست — مطابقة تلقائية":"🎛️ مع هوست — تأكيد من جهاز خاص";renderTop10Answers();renderTeams();publishHostState();$("top10Progress").textContent=`الجولة ${state.top10.round} من ${state.top10.maxRounds}`;}
+function nextTop10(){if(state.top10.round>=state.top10.maxRounds){alert("انتهت الجولات");showScreen("home");return}const q=pickUnused(state.top10.pool,state.top10.used);if(!q){alert("خلصت الأسئلة");showScreen("home");return}state.top10.current=q;state.top10.revealed=new Set();state.top10.hearts={A:3,B:3};state.top10.pendingAnswer="";state.top10.pendingMatch=-1;state.top10.round++;state.top10.activeTeam=(state.top10.round%2===1)?"A":"B";$("top10Cat").textContent=q.category||"عام";$("top10Question").textContent=q.question;$("top10Notice").textContent=`بداية الجولة: الدور على ${state.top10.activeTeam==="A"?state.top10.teamA:state.top10.teamB}. ${state.top10.mode==="auto"?"المطابقة تلقائية.":"الإجابة ستذهب لجهاز الحكم الخاص."}`;$("topModeBadge").textContent=state.top10.mode==="auto"?"⚡ بدون حكم — مطابقة تلقائية":"🎛️ مع حكم — تأكيد من جهاز خاص";renderTop10Answers();renderTeams();publishHostState();$("top10Progress").textContent=`الجولة ${state.top10.round} من ${state.top10.maxRounds}`;}
 $("startTop10").onclick=()=>{if(state.top10.mode==="host"&&!state.top10.sessionId)state.top10.sessionId=randomSessionId();state.top10.pool=shuffle(BUILTIN_TOP10);state.top10.used=new Set();state.top10.round=0;state.top10.maxRounds=Math.max(1,Math.min(50,+$("top10Rounds").value||10));state.top10.teamA=$("teamAInput").value.trim()||"الفريق أ";state.top10.teamB=$("teamBInput").value.trim()||"الفريق ب";state.top10.scores={A:0,B:0};state.top10.hearts={A:3,B:3};state.top10.activeTeam="A";showScreen("top10Game");nextTop10()}
 $("revealAllTop10").onclick=()=>{state.top10.current.answers.forEach((_,i)=>state.top10.revealed.add(i));renderTop10Answers();publishHostState();$("top10Notice").textContent="تم كشف القائمة كاملة. الآن عدلوا نقاط أي فريق يدويًا إذا كان قال نفس المعنى بمصطلح مختلف."}
 $("nextTop10").onclick=nextTop10;
@@ -364,7 +364,7 @@ $("submitTop10Answer").onclick=()=>{
     if(best.index>=0&&best.score>=88)confirmTop10Answer(best.index);else markTop10Wrong();
   }else{
     localStorage.setItem("lamma_host_pending",JSON.stringify({sessionId:state.top10.sessionId,text:txt,suggestedIndex:best.score>=70?best.index:-1,suggestedScore:best.score,via:best.via,ts:Date.now()}));
-    publishHostState();$("top10Notice").textContent="⏳ أُرسلت الإجابة إلى جهاز الهوست. بانتظار التأكيد...";
+    publishHostState();$("top10Notice").textContent="⏳ أُرسلت الإجابة إلى جهاز الحكم. بانتظار التأكيد...";
   }
 };
 $("top10AnswerInput").addEventListener("keydown",e=>{if(e.key==="Enter")$("submitTop10Answer").click()});
@@ -380,7 +380,7 @@ let hostAccessTimer=null;
 function randomSessionId(){if(window.crypto&&crypto.getRandomValues){const a=new Uint32Array(2);crypto.getRandomValues(a);return (a[0].toString(36)+a[1].toString(36)).slice(0,10).toUpperCase()}return Math.random().toString(36).slice(2,12).toUpperCase()}
 $("makeHostAccess").onclick=()=>{
   state.top10.sessionId=randomSessionId();const link=new URL("host.html",location.href);link.searchParams.set("room",state.top10.sessionId);$("hostCode").textContent=state.top10.sessionId;$("hostPrivateLink").href=link.href;$("hostAccess").classList.remove("hidden");$("hostQr").innerHTML="";
-  if(window.QRCode)new QRCode($("hostQr"),{text:link.href,width:176,height:176});else $("hostQr").textContent="QR غير متاح — استخدم زر فتح لوحة الهوست";
+  if(window.QRCode)new QRCode($("hostQr"),{text:link.href,width:176,height:176});else $("hostQr").textContent="QR غير متاح — استخدم زر فتح لوحة الحكم";
   clearInterval(hostAccessTimer);let left=15;$("hostCountdown").textContent=`سيختفي الرمز خلال ${left} ثانية`;
   hostAccessTimer=setInterval(()=>{left--;$("hostCountdown").textContent=`سيختفي الرمز خلال ${Math.max(0,left)} ثانية`;if(left<=0){clearInterval(hostAccessTimer);$("hostAccess").classList.add("hidden")}},1000);
 };

@@ -5,10 +5,20 @@ import { $, roomCodeFromUrl, escapeHtml, now, cryptoRand } from "./common.js";
 
 const room=roomCodeFromUrl();
 let user,meta,me,members={},selectedCard=null,selectedVote=null,lastPublic=null;
-let ownerTimerSeconds=14,atrashProcessing=false,submittingAnswer=false,submittingVote=false;
+let ownerTimerSeconds=14,atrashProcessing=false,atrashActionProcessing=false,submittingAnswer=false,submittingVote=false;
 const rr=p=>ref(db,`rooms/${room}${p?'/'+p:''}`);
 const isOwner=()=>user?.uid===meta?.ownerUid||me?.role==='owner';
 const activeMembers=()=>Object.entries(members).filter(([,m])=>m&&m.name&&m.online!==false);
+
+async function copyInviteLink(btn=$("inviteBtn")){
+  const url=new URL(`play.html?room=${room}`,location.href).href;
+  try{
+    await navigator.clipboard.writeText(url);
+    if(btn){const old=btn.textContent;btn.textContent='✓ تم النسخ';setTimeout(()=>{if(btn)btn.textContent=old||'🔗 رابط الدخول';},1200);}
+  }catch{
+    prompt('انسخ رابط الدخول:',url);
+  }
+}
 
 async function boot(){
   if(!room){$("joinMsg").textContent='كود الغرفة غير موجود';return;}
@@ -16,7 +26,8 @@ async function boot(){
   const ms=await get(rr('meta'));
   if(!ms.exists()){$("joinMsg").textContent='الغرفة غير موجودة';return;}
   meta=ms.val();$("joinRoomLabel").textContent=room;
-  if(meta.game==='top10'){$("joinStage").innerHTML='<div class="stage"><h2>Top 10 لا تحتاج دخول لاعب</h2><div class="muted">ارجع للشاشة المشتركة. إذا كنت حكم Top 10 استخدم رابط الحكم الخاص الذي يظهر للهوست.</div></div>';return;}
+  if(meta.game==='top10'){$("joinStage").innerHTML='<div class="stage"><h2>Top 10 لا تحتاج دخول لاعب</h2><div class="muted">ارجع لشاشة Top 10 الرئيسية. وإذا اخترتم وضع الحكم، استخدم رابط الحكم الخاص.</div></div>';return;}
+  const invite=$("inviteBtn");if(invite){invite.classList.remove('hidden');invite.onclick=()=>copyInviteLink(invite);}
   const old=(await get(rr(`members/${user.uid}`))).val();
   if(old){
     me=old;$("joinStage").classList.add('hidden');$("playerApp").classList.remove('hidden');startListeners();return;
@@ -54,6 +65,7 @@ function startListeners(){
     if(isOwner()){
       onValue(rr('answerStatus'),()=>checkAtrashProgress());
       onValue(rr('voteStatus'),()=>checkAtrashProgress());
+      onValue(rr('atrashAction'),s=>handleAtrashAction(s.val()));
     }
   }
   if(meta.game==='kalim'){
@@ -103,10 +115,7 @@ function renderLobby(){
       <div class="small">${count<2?`تحتاج لاعبين على الأقل. الموجود الآن ${count}.`:'جاهزين للبدء.'}</div>
     </div>`;
   }
-  const ownerTools=isOwner()?`<div class="lobby-owner-tools">
-    <button class="secondary" id="copyJoinLink">🔗 نسخ رابط الدخول</button>
-    <button class="secondary" id="openPublicDisplay">🖥️ فتح الشاشة العامة</button>
-  </div>`:'';
+  const ownerTools='';
   $("playerApp").innerHTML=`<div class="panel player-lobby">
     <div class="small">الغرفة ${room}</div><h2>${game}</h2>
     <div class="notice">أنت داخل الغرفة باسم <b>${escapeHtml(me?.name||'')}</b>${isOwner()?' 👑':''}.</div>
@@ -114,12 +123,6 @@ function renderLobby(){
     ${ownerControls}${ownerTools}
   </div>`;
   document.querySelectorAll('.coKick').forEach(b=>b.onclick=async()=>{if(confirm('طرد هذا اللاعب؟'))await remove(rr(`members/${b.dataset.u}`));});
-  const c=$("copyJoinLink");if(c)c.onclick=async()=>{
-    const url=new URL(`play.html?room=${room}`,location.href).href;
-    try{await navigator.clipboard.writeText(url);c.textContent='✅ تم النسخ';setTimeout(()=>c.textContent='🔗 نسخ رابط الدخول',1200);}
-    catch{prompt('انسخ رابط الدخول:',url);}
-  };
-  const d=$("openPublicDisplay");if(d)d.onclick=()=>window.open(`display.html?room=${room}`,'_blank');
   const sa=$("ownerStartAtr");if(sa)sa.onclick=startAtrashFirstFromPlayer;
   const sk=$("ownerStartKalim");if(sk)sk.onclick=startKalimFromPlayer;
   const mn=$("ownerTimerMinus"),pl=$("ownerTimerPlus");
@@ -152,22 +155,7 @@ function renderCohostPanel(){
   });
   document.querySelectorAll('.ownerRoleBtn').forEach(b=>b.onclick=async()=>{await update(rr(`members/${b.dataset.u}`),{role:b.dataset.role==='cohost'?'player':'cohost'});renderCohostPanel();});
   document.querySelectorAll('.cohostKick').forEach(b=>b.onclick=async()=>{if(confirm('طرد هذا اللاعب؟'))await remove(rr(`members/${b.dataset.u}`));});
-  const extra=$("cohostExtra");
-  const parts=[];
-  if(owner)parts.push('<button class="secondary" id="managePublicDisplay" style="width:100%;margin-top:8px">🖥️ فتح الشاشة العامة</button>');
-  if(meta?.game==='kalim')parts.push('<button class="secondary" id="cohostReturnTurn" style="width:100%;margin-top:8px">↩ إرجاع الدور لأي لاعب</button>');
-  extra.innerHTML=parts.join('');
-  const rb=$("cohostReturnTurn");if(rb)rb.onclick=cohostReturnKalimTurn;
-  const dp=$("managePublicDisplay");if(dp)dp.onclick=()=>window.open(`display.html?room=${room}`,'_blank');
-}
-
-async function cohostReturnKalimTurn(){
-  const k=(await get(rr('public/kalim'))).val();if(!k)return;
-  const choices=(k.order||[]).map((u,i)=>`${i+1}: ${members[u]?.name||u}`).join('\n');
-  const n=prompt('اختاري رقم اللاعب:\n'+choices);const idx=Number(n)-1;if(idx<0||idx>=k.order.length)return;
-  const ms=k.timerMs||14000;
-  await update(rr('public/kalim'),{currentIndex:idx,currentUid:k.order[idx],remainingMs:ms,deadline:Date.now()+ms,timerRunning:true,bellStopped:false,transitionAt:null,lastAction:`أُعيد الدور إلى ${members[k.order[idx]]?.name||''}`});
-  $("cohostPanel").classList.add('hidden');
+  const extra=$("cohostExtra");if(extra)extra.innerHTML='';
 }
 
 // Atrash owner controller
@@ -244,6 +232,27 @@ function waitScreen(title,sub){
   $("playerApp").innerHTML=`<div class="stage"><h2>${title}</h2><div class="muted">${sub}</div></div>`;
 }
 
+async function requestAtrashAction(type){
+  await set(rr('atrashAction'),{type,byUid:user.uid,ts:now()});
+}
+
+async function handleAtrashAction(action){
+  if(!isOwner()||!action||atrashActionProcessing)return;
+  atrashActionProcessing=true;
+  try{
+    const p=(await get(rr('public/atrash'))).val();
+    if(action.type==='startVote'&&p?.phase==='discussion'){
+      await Promise.all([remove(rr('votes')),remove(rr('voteStatus'))]);
+      await update(rr('public/atrash'),{phase:'voting',message:'التصويت سري.'});
+    }else if(action.type==='nextRound'&&p?.phase==='results'){
+      await startAtrashRoundFromPlayer();
+    }
+  }finally{
+    await remove(rr('atrashAction')).catch(()=>{});
+    atrashActionProcessing=false;
+  }
+}
+
 async function renderAtrash(p){
   if(!p){renderLobby();return;}
   if(p.phase==='answering'){
@@ -257,19 +266,19 @@ async function renderAtrash(p){
         <input id="atrAnswer" autocomplete="off" enterkeyhint="send" placeholder="اكتب جوابك...">
         <button class="primary" type="submit" id="atrSend">إرسال الإجابة</button>
       </form>
-      <div class="notice" id="atrActionMsg">جوابك ما يظهر للبقية إلا بعد ما يخلص الجميع.</div>
+      <div class="status-message" id="atrActionMsg">جوابك ما يظهر للبقية إلا بعد ما يخلص الجميع.</div>
     </div>`;
     $("atrAnswerForm").onsubmit=e=>{e.preventDefault();sendAtrashAnswer();};refreshCohostUi();return;
   }
   if(p.phase==='revealing'){waitScreen('لحظة…','جاري إظهار الإجابات.');return;}
   if(p.phase==='discussion'){
-    const ownerButton=isOwner()?'<button class="primary" id="ownerStartVote">ابدأ التصويت</button>':'';
     $("playerApp").innerHTML=`<div class="stage">
       <div class="real-question"><span class="small">السؤال الحقيقي</span><b>${escapeHtml(p.mainQuestion)}</b></div>
       <div class="answer-list">${Object.values(p.revealedAnswers||{}).map(a=>`<div class="answer-item"><b>${escapeHtml(a.name)}</b><span>${escapeHtml(a.text)}</span></div>`).join('')}</div>
-      <div class="notice">${isOwner()?'بعد النقاش ابدأ التصويت.':'ناقشوا الإجابات وانتظروا الهوست يبدأ التصويت.'}</div>${ownerButton}
+      <div class="muted" style="margin:12px 0">تناقشوا بينكم، وبعدها أي لاعب يقدر يبدأ التصويت.</div>
+      <button class="primary" id="startVoteBtn">ابدأ التصويت</button>
     </div>`;
-    const b=$("ownerStartVote");if(b)b.onclick=async()=>{b.disabled=true;await Promise.all([remove(rr("votes")),remove(rr("voteStatus"))]);await update(rr("public/atrash"),{phase:'voting',message:'التصويت سري.'});};
+    const b=$("startVoteBtn");if(b)b.onclick=async()=>{b.disabled=true;b.textContent='جاري البدء…';try{await requestAtrashAction('startVote');}catch{b.disabled=false;b.textContent='ابدأ التصويت';}};
     refreshCohostUi();return;
   }
   if(p.phase==='voting'){
@@ -280,21 +289,21 @@ async function renderAtrash(p){
       <h2>مين الأطرش؟ 🗳️</h2>
       <div class="vote-list">${Object.entries(members).filter(([u,m])=>u!==user.uid&&m?.online!==false).map(([u,m])=>`<button type="button" class="vote-option" data-u="${u}">${escapeHtml(m.name)}</button>`).join('')}</div>
       <button class="primary" id="voteBtn" disabled>تأكيد التصويت</button>
-      <div class="notice" id="voteActionMsg">اختيارك سري.</div>
+      <div class="status-message" id="voteActionMsg">اختيارك سري.</div>
     </div>`;
     document.querySelectorAll('.vote-option').forEach(b=>b.onclick=()=>{selectedVote=b.dataset.u;document.querySelectorAll('.vote-option').forEach(x=>x.classList.toggle('selected',x===b));$("voteBtn").disabled=false;});
     $("voteBtn").onclick=sendVote;refreshCohostUi();return;
   }
   if(p.phase==='tallying'){waitScreen('نحسب الأصوات…','لحظات وتظهر النتيجة.');return;}
   if(p.phase==='results'){
-    const next=isOwner()?'<button class="primary" id="ownerNextAtr">الجولة التالية</button>':'<div class="muted">بانتظار الهوست يبدأ الجولة التالية.</div>';
     $("playerApp").innerHTML=`<div class="stage">
       <div class="small">الأطرش</div><div class="winner">${escapeHtml(p.outsiderName)}</div>
       <div class="small">سؤال الأطرش</div><div class="secret-question">${escapeHtml(p.outsiderQuestion)}</div>
       <div class="notice">الأطرش أخذ ${p.outsiderPoints} · حد الربع ${p.threshold}</div>
-      <div class="score-list" style="width:100%">${Object.values(p.scores||{}).sort((a,b)=>(b.score||0)-(a.score||0)).map(s=>`<div class="score-item"><b>${escapeHtml(s.name)}</b><span>${s.score||0} نقطة</span></div>`).join('')}</div>${next}
+      <div class="score-list" style="width:100%">${Object.values(p.scores||{}).sort((a,b)=>(b.score||0)-(a.score||0)).map(s=>`<div class="score-item"><b>${escapeHtml(s.name)}</b><span>${s.score||0} نقطة</span></div>`).join('')}</div>
+      <button class="primary" id="nextAtrBtn">الجولة التالية</button>
     </div>`;
-    const b=$("ownerNextAtr");if(b)b.onclick=()=>startAtrashRoundFromPlayer();refreshCohostUi();return;
+    const b=$("nextAtrBtn");if(b)b.onclick=async()=>{b.disabled=true;b.textContent='جاري التجهيز…';try{await requestAtrashAction('nextRound');}catch{b.disabled=false;b.textContent='الجولة التالية';}};refreshCohostUi();return;
   }
   if(p.phase==='finished'){$("playerApp").innerHTML='<div class="stage"><h2>انتهت اللعبة 👏</h2></div>';refreshCohostUi();return;}
 }
@@ -334,30 +343,267 @@ async function sendVote(){
 // Kalim owner start
 async function startKalimFromPlayer(){
   if(!isOwner())return;
-  const list=activeMembers().sort((a,b)=>(a[1].joinedAt||0)-(b[1].joinedAt||0));if(list.length<2)return;
+  const list=activeMembers().sort((a,b)=>(a[1].joinedAt||0)-(b[1].joinedAt||0));
+  if(list.length<2)return;
   const k=createKalimState(list,ownerTimerSeconds);
-  await set(rr("public/kalim"),k);await update(rr("meta"),{status:'playing'});
+  await set(rr("public/kalim"),k);
+  await update(rr("meta"),{status:'playing'});
 }
 
 // Kalim
-function face(c){return c?.useBack?c.b:c.a}function other(c){return c?.useBack?c.a:c.b}
-function cardHtml(c,i,sel=false){const f=face(c),o=other(c);return `<button class="game-card-letter ${sel?'selected':''} ${f==='★'?'star':''}" data-card="${i}"><span class="corner">${escapeHtml(o)}</span>${escapeHtml(f)}</button>`;}
+function face(c){return c?.useBack?c.b:c.a;}
+function other(c){return c?.useBack?c.a:c.b;}
+function cardHtml(c,i,sel=false,disabled=false){
+  const f=face(c),o=other(c);
+  return `<button class="game-card-letter ${sel?'selected':''} ${f==='★'?'star':''}" data-card="${i}" ${disabled?'disabled':''}><span class="corner">${escapeHtml(o)}</span>${escapeHtml(f)}</button>`;
+}
 function mini(c){return `<div class="mini-card"><small>${escapeHtml(other(c))}</small>${escapeHtml(face(c))}</div>`;}
-function rem(k){return k?.timerRunning?Math.max(0,(k.deadline||Date.now())-Date.now()):Math.max(0,k?.remainingMs||0)}
-function renderKalim(k){if(!k){renderLobby();return;}const names=Object.fromEntries(Object.entries(members).map(([u,m])=>[u,m.name]));const myHand=k.hands?.[user.uid]||[];const active=k.currentUid===user.uid;const opp=(k.order||[]).filter(u=>u!==user.uid).map(u=>`<div class="opp ${u===k.currentUid?'active':''}"><b>${escapeHtml(names[u]||'لاعب')}</b><div class="small">${u===k.currentUid?'دوره الآن':'بانتظار'} · ${(k.hands?.[u]||[]).length}</div><div class="opp-cards">${(k.hands?.[u]||[]).map(mini).join('')}</div></div>`).join('');const word=(k.stacks||[]).map((st,i)=>{const top=st[st.length-1];return `<button class="word-slot ghost" data-slot="${i}" style="padding:0;border:none"><div class="game-card-letter"><span class="corner">${escapeHtml(top.other||'')}</span>${escapeHtml(top.letter)}</div><div class="depth">${st.length>1?'فوق '+(st.length-1):''}</div></button>`}).join('');$("playerApp").innerHTML=`<div class="kalim-layout"><div class="opponents">${opp}</div><div class="question-box"><div class="small">الدور الآن</div><div class="question">${escapeHtml(names[k.currentUid]||'')}</div><div class="timer" id="kTimer">${Math.ceil(rem(k)/1000)}</div><div class="word">${word}</div><div class="notice">${escapeHtml(k.lastAction||'')}</div><div class="toolbar" style="justify-content:center"><button class="primary" id="bellBtn" ${active?'':'disabled'}>🔔 الجرس</button><button class="secondary" id="drawBtn" ${active&&!k.transitionAt?'':'disabled'}>+ سحب</button><button class="secondary" id="pauseBtn" ${k.transitionAt?'disabled':''}>${k.timerRunning?'⏸ إيقاف':'▶ استكمال'}</button></div></div>${k.winnerUid?`<div class="stage"><div class="winner">🏆 ${escapeHtml(names[k.winnerUid]||'الفائز')}</div></div>`:''}<div class="my-hand-wrap"><div style="display:flex;justify-content:space-between"><b>${escapeHtml(me.name)}</b><span class="small">${myHand.length} بطاقات · اضغط مرتين لقلب البطاقة</span></div><div class="hand">${myHand.map((c,i)=>cardHtml(c,i,selectedCard===i)).join('')}</div></div><button class="chat-fab" id="chatToggle">💬</button><div class="chat-drawer ${chatOpen?'':'hidden'}" id="chatDrawer"><div class="manage-head"><b>الدردشة</b><button class="secondary" id="chatClose">إغلاق</button></div><div class="chat" id="chatBox"></div><div class="entry"><input id="chatInput" placeholder="رسالة..."><button class="primary" id="chatSend">إرسال</button></div></div></div>`;
- document.querySelectorAll('[data-card]').forEach(b=>{b.onclick=e=>handleCardTap(+b.dataset.card,e)});document.querySelectorAll('[data-slot]').forEach(b=>b.onclick=()=>playSlot(+b.dataset.slot));$("drawBtn").onclick=drawCard;$("bellBtn").onclick=bell;$("pauseBtn").onclick=pauseResume;$("chatSend").onclick=sendChat;$("chatToggle").onclick=()=>{chatOpen=true;$("chatDrawer").classList.remove("hidden");};$("chatClose").onclick=()=>{chatOpen=false;$("chatDrawer").classList.add("hidden");};renderChatCache();refreshCohostUi();}
+function rem(k){return k?.timerRunning?Math.max(0,(k.deadline||Date.now())-Date.now()):Math.max(0,k?.remainingMs||0);}
+function starGraceRemaining(k){
+  const sc=k?.starChoice;if(!sc||sc.resumed)return 0;
+  return Math.max(0,(sc.graceUntil||0)-Date.now());
+}
+function arabicLetter(v){
+  const chars=Array.from(String(v||'').trim());
+  return chars.length===1 && /[\u0621-\u064A]/.test(chars[0]) ? chars[0] : '';
+}
+
+function renderKalim(k){
+  if(!k){renderLobby();return;}
+  const names=Object.fromEntries(Object.entries(members).map(([u,m])=>[u,m.name]));
+  const myHand=k.hands?.[user.uid]||[];
+  const active=k.currentUid===user.uid;
+  const playedThisTurn=active&&k.turnPlay?.uid===user.uid;
+  const choosingStar=active&&k.starChoice?.uid===user.uid;
+  const handLocked=!active||!!k.transitionAt||!!k.turnPlay||!!k.starChoice;
+  const opp=(k.order||[]).filter(u=>u!==user.uid).map(u=>`<div class="opp ${u===k.currentUid?'active':''}"><b>${escapeHtml(names[u]||'لاعب')}</b><div class="small">${u===k.currentUid?'دوره الآن':'بانتظار'} · ${(k.hands?.[u]||[]).length}</div><div class="opp-cards">${(k.hands?.[u]||[]).map(mini).join('')}</div></div>`).join('');
+  const word=(k.stacks||[]).map((st,i)=>{
+    const top=st[st.length-1];
+    const undoable=playedThisTurn&&k.turnPlay?.slot===i;
+    const canPlace=active&&!k.transitionAt&&!k.turnPlay&&!k.starChoice&&selectedCard!=null;
+    const enabled=undoable||canPlace;
+    return `<button class="word-slot ghost ${undoable?'undoable':''}" data-slot="${i}" style="padding:0;border:none" ${enabled?'':'disabled'}><div class="game-card-letter"><span class="corner">${escapeHtml(top.other||'')}</span>${escapeHtml(top.letter)}</div><div class="depth">${undoable?'اضغط للإرجاع':st.length>1?'فوق '+(st.length-1):''}</div></button>`;
+  }).join('');
+  const turnHint=playedThisTurn?'<div class="turn-hint">✓ نزلت بطاقة هذا الدور. لو كانت بالخطأ اضغط البطاقة المميزة في الوسط لإرجاعها أولًا.</div>':'';
+  const starModal=choosingStar?`<div class="star-choice-backdrop"><div class="star-choice-card"><div class="star-choice-icon">★</div><h3>اختار حرف النجمة</h3><p>عندك 4 ثوانٍ مجانية، وبعدها يكمل وقتك الأساسي من حيث توقف.</p><div class="star-grace" id="starGraceText">${k.starChoice?.resumed?'بدأ وقتك الأساسي':`المهلة المجانية: ${Math.ceil(starGraceRemaining(k)/1000)} ث`}</div><form id="starChoiceForm"><input id="starLetterInput" maxlength="1" inputmode="text" autocomplete="off" placeholder="مثال: م" autofocus><div class="star-choice-actions"><button class="primary" type="submit">تأكيد الحرف</button><button class="secondary" id="cancelStarChoice" type="button">إلغاء</button></div><div class="status-message" id="starChoiceMsg"></div></form></div></div>`:'';
+  const deckEmpty=!(k.deck?.length);
+  $("playerApp").innerHTML=`<div class="kalim-layout"><div class="opponents">${opp}</div><div class="question-box"><div class="small">الدور الآن</div><div class="question">${escapeHtml(names[k.currentUid]||'')}</div><div class="timer" id="kTimer">${Math.ceil(rem(k)/1000)}</div><div class="word">${word}</div><div class="game-status">${escapeHtml(k.lastAction||'')}</div>${turnHint}<div class="toolbar kalim-actions" style="justify-content:center"><button class="primary" id="bellBtn" ${active&&!k.starChoice?'':'disabled'}>🔔 الجرس</button><button class="secondary" id="drawBtn" ${deckEmpty||k.winnerUid?'disabled':''}>+ سحب</button><button class="secondary" id="resetTimerBtn" ${k.transitionAt||k.starChoice?'disabled':''}>↻ إعادة الوقت</button><button class="secondary" id="pauseBtn" ${k.transitionAt||k.starChoice?'disabled':''}>${k.timerRunning?'⏸ إيقاف':'▶ استكمال'}</button></div></div>${k.winnerUid?`<div class="stage"><div class="winner">🏆 ${escapeHtml(names[k.winnerUid]||'الفائز')}</div></div>`:''}<div class="my-hand-wrap"><div style="display:flex;justify-content:space-between"><b>${escapeHtml(me.name)}${isOwner()?' 👑':''}</b><span class="small">${myHand.length} بطاقات · ضغطتان سريعًا لقلب البطاقة</span></div><div class="hand">${myHand.map((c,i)=>cardHtml(c,i,selectedCard===i,handLocked)).join('')}</div></div><button class="chat-fab" id="chatToggle">💬</button><div class="chat-drawer ${chatOpen?'':'hidden'}" id="chatDrawer"><div class="manage-head"><b>الدردشة</b><button class="secondary" id="chatClose">إغلاق</button></div><div class="chat" id="chatBox"></div><div class="entry"><input id="chatInput" placeholder="رسالة..."><button class="primary" id="chatSend">إرسال</button></div></div>${starModal}</div>`;
+  document.querySelectorAll('[data-card]').forEach(b=>{b.onclick=e=>handleCardTap(+b.dataset.card,e);});
+  document.querySelectorAll('[data-slot]').forEach(b=>{b.onclick=()=>playSlot(+b.dataset.slot);});
+  const draw=$("drawBtn");if(draw)draw.onclick=drawCard;
+  const bellBtn=$("bellBtn");if(bellBtn)bellBtn.onclick=bell;
+  const pauseBtn=$("pauseBtn");if(pauseBtn)pauseBtn.onclick=pauseResume;
+  const resetBtn=$("resetTimerBtn");if(resetBtn)resetBtn.onclick=resetKalimTimer;
+  const chatSend=$("chatSend");if(chatSend)chatSend.onclick=sendChat;
+  const chatToggle=$("chatToggle");if(chatToggle)chatToggle.onclick=()=>{chatOpen=true;$("chatDrawer").classList.remove("hidden");};
+  const chatClose=$("chatClose");if(chatClose)chatClose.onclick=()=>{chatOpen=false;$("chatDrawer").classList.add("hidden");};
+  const starForm=$("starChoiceForm");if(starForm)starForm.onsubmit=e=>{e.preventDefault();confirmStarLetter();};
+  const cancelStar=$("cancelStarChoice");if(cancelStar)cancelStar.onclick=cancelStarChoice;
+  if(choosingStar)setTimeout(()=>$("starLetterInput")?.focus(),40);
+  renderChatCache();refreshCohostUi();
+}
+
 let lastCardTap={i:null,at:0};
-function handleCardTap(i,e){const t=Date.now();if(lastCardTap.i===i&&t-lastCardTap.at<=360){e?.preventDefault?.();lastCardTap={i:null,at:0};flipCard(i);return;}lastCardTap={i,at:t};selectCard(i);}
-function selectCard(i){selectedCard=i;renderKalim(lastPublic)}
-async function flipCard(i){await runTransaction(rr('public/kalim'),k=>{if(!k||k.currentUid!==user.uid||k.transitionAt)return k;const c=k.hands?.[user.uid]?.[i];if(c)c.useBack=!c.useBack;return k;});selectedCard=i;}
-async function playSlot(slot){if(selectedCard==null){await undoSlot(slot);return;}let starLetter=null;const c=lastPublic?.hands?.[user.uid]?.[selectedCard];if(face(c)==='★'){starLetter=prompt('النجمة تمثل أي حرف؟ اكتب حرفًا عربيًا واحدًا:')?.trim();if(!starLetter)return;}const idx=selectedCard;selectedCard=null;await runTransaction(rr('public/kalim'),k=>{if(!k||k.currentUid!==user.uid||k.transitionAt)return k;const hand=k.hands?.[user.uid]||[];const card=hand[idx];if(!card)return k;const f=card.useBack?card.b:card.a,o=card.useBack?card.a:card.b;hand.splice(idx,1);k.stacks[slot].push({letter:f==='★'?starLetter:f,other:o,ownerUid:user.uid,card});k.lastAction=`${me.name} وضع حرف ${f==='★'?starLetter:f}`;if(hand.length===0)k.winnerUid=user.uid;return k;});}
-async function undoSlot(slot){await runTransaction(rr('public/kalim'),k=>{if(!k||k.currentUid!==user.uid||k.transitionAt)return k;const st=k.stacks?.[slot];if(!st||st.length<=1)return k;const top=st.pop();if(top.ownerUid&&top.card){k.hands[top.ownerUid]=k.hands[top.ownerUid]||[];k.hands[top.ownerUid].push(top.card);k.lastAction=`تم التراجع عن حرف ${top.letter}`;}return k;});}
-async function drawCard(){await runTransaction(rr('public/kalim'),k=>{if(!k||k.currentUid!==user.uid||k.transitionAt)return k;const c=k.deck?.pop();if(c){k.hands[user.uid].push(c);k.lastAction=`${me.name} سحب بطاقة`;}return k;});}
-async function bell(){await runTransaction(rr('public/kalim'),k=>{if(!k||k.currentUid!==user.uid)return k;const n=Date.now();if(!k.bellStopped){k.remainingMs=k.timerRunning?Math.max(0,(k.deadline||n)-n):(k.remainingMs||0);k.timerRunning=false;k.bellStopped=true;k.transitionAt=n+2000;k.lastAction=`${me.name} أنهى دوره`;return k;}const ms=k.timerMs||14000;k.currentIndex=((k.currentIndex||0)+1)%k.order.length;k.currentUid=k.order[k.currentIndex];k.remainingMs=ms;k.deadline=n+ms;k.timerRunning=true;k.bellStopped=false;k.transitionAt=null;k.lastAction='بدأ دور اللاعب التالي';return k;});}
-async function pauseResume(){await runTransaction(rr('public/kalim'),k=>{if(!k||k.transitionAt)return k;if(k.timerRunning){k.remainingMs=Math.max(0,(k.deadline||Date.now())-Date.now());k.timerRunning=false;k.lastAction='تم إيقاف الوقت.';}else{k.deadline=Date.now()+(k.remainingMs||k.timerMs||14000);k.timerRunning=true;k.lastAction='تم استكمال الوقت.';}return k;});}
-async function tickKalimClock(){if(!lastPublic)return;const nowMs=Date.now();if((lastPublic.timerRunning&&(lastPublic.deadline||0)<=nowMs)||(!lastPublic.timerRunning&&lastPublic.transitionAt&&lastPublic.transitionAt<=nowMs)){await runTransaction(rr('public/kalim'),k=>{if(!k)return k;const n=Date.now();if(k.timerRunning&&(k.deadline||0)<=n){k.timerRunning=false;k.remainingMs=0;k.bellStopped=true;k.transitionAt=n+2000;k.lastAction='انتهى الوقت.';return k;}if(!k.timerRunning&&k.transitionAt&&k.transitionAt<=n){const ms=k.timerMs||14000;k.currentIndex=((k.currentIndex||0)+1)%k.order.length;k.currentUid=k.order[k.currentIndex];k.remainingMs=ms;k.deadline=n+ms;k.timerRunning=true;k.bellStopped=false;k.transitionAt=null;k.lastAction='بدأ دور اللاعب التالي تلقائيًا.';}return k;});}}
+function handleCardTap(i,e){
+  const t=Date.now();
+  if(lastCardTap.i===i&&t-lastCardTap.at<=360){e?.preventDefault?.();lastCardTap={i:null,at:0};flipCard(i);return;}
+  lastCardTap={i,at:t};selectCard(i);
+}
+function selectCard(i){
+  if(!lastPublic||lastPublic.currentUid!==user.uid||lastPublic.transitionAt||lastPublic.turnPlay||lastPublic.starChoice)return;
+  selectedCard=i;renderKalim(lastPublic);
+}
+async function flipCard(i){
+  await runTransaction(rr('public/kalim'),k=>{
+    if(!k||k.currentUid!==user.uid||k.transitionAt||k.turnPlay||k.starChoice)return k;
+    const c=k.hands?.[user.uid]?.[i];if(c)c.useBack=!c.useBack;return k;
+  });
+  selectedCard=i;
+}
+
+async function beginStarChoice(slot,idx){
+  const result=await runTransaction(rr('public/kalim'),k=>{
+    if(!k||k.currentUid!==user.uid||k.transitionAt||k.turnPlay||k.starChoice)return k;
+    const card=k.hands?.[user.uid]?.[idx];if(!card)return k;
+    const f=card.useBack?card.b:card.a;if(f!=='★')return k;
+    const n=Date.now();
+    const remaining=k.timerRunning?Math.max(0,(k.deadline||n)-n):Math.max(0,k.remainingMs||0);
+    if(remaining<=0)return k;
+    k.remainingMs=remaining;k.timerRunning=false;
+    k.starChoice={uid:user.uid,slot,cardIndex:idx,graceUntil:n+4000,baseRemainingMs:remaining,resumed:false};
+    k.lastAction=`${me.name} يختار حرف النجمة`;
+    return k;
+  });
+  if(result?.committed)selectedCard=null;
+}
+
+async function playSlot(slot){
+  if(!lastPublic||lastPublic.currentUid!==user.uid||lastPublic.transitionAt)return;
+  if(lastPublic.turnPlay){
+    if(lastPublic.turnPlay.uid===user.uid&&lastPublic.turnPlay.slot===slot)await undoSlot(slot);
+    return;
+  }
+  if(lastPublic.starChoice)return;
+  if(selectedCard==null)return;
+  const c=lastPublic?.hands?.[user.uid]?.[selectedCard];if(!c)return;
+  if(face(c)==='★'){await beginStarChoice(slot,selectedCard);return;}
+  const idx=selectedCard;selectedCard=null;
+  await runTransaction(rr('public/kalim'),k=>{
+    if(!k||k.currentUid!==user.uid||k.transitionAt||k.turnPlay||k.starChoice)return k;
+    const hand=k.hands?.[user.uid]||[],card=hand[idx];if(!card)return k;
+    const f=card.useBack?card.b:card.a,o=card.useBack?card.a:card.b;
+    hand.splice(idx,1);
+    k.stacks[slot].push({letter:f,other:o,ownerUid:user.uid,card});
+    k.turnPlay={uid:user.uid,slot};
+    k.lastAction=`${me.name} وضع حرف ${f}`;
+    if(hand.length===0)k.winnerUid=user.uid;
+    return k;
+  });
+}
+
+async function confirmStarLetter(){
+  const input=$("starLetterInput"),msg=$("starChoiceMsg");
+  const letter=arabicLetter(input?.value);
+  if(!letter){if(msg)msg.textContent='اكتب حرفًا عربيًا واحدًا.';input?.focus();return;}
+  const result=await runTransaction(rr('public/kalim'),k=>{
+    const sc=k?.starChoice;
+    if(!k||!sc||sc.uid!==user.uid||k.currentUid!==user.uid||k.transitionAt||k.turnPlay)return k;
+    const hand=k.hands?.[user.uid]||[],card=hand[sc.cardIndex];if(!card)return k;
+    const f=card.useBack?card.b:card.a,o=card.useBack?card.a:card.b;if(f!=='★')return k;
+    const n=Date.now();
+    if(!sc.resumed){
+      const elapsedAfterGrace=Math.max(0,n-(sc.graceUntil||n));
+      const remaining=Math.max(0,(sc.baseRemainingMs||0)-elapsedAfterGrace);
+      if(remaining<=0){k.timerRunning=false;k.remainingMs=0;k.bellStopped=true;k.transitionAt=n+2000;k.starChoice=null;k.lastAction='انتهى الوقت.';return k;}
+      k.remainingMs=remaining;k.deadline=n+remaining;k.timerRunning=true;
+    }
+    hand.splice(sc.cardIndex,1);
+    k.stacks[sc.slot].push({letter,other:o,ownerUid:user.uid,card});
+    k.turnPlay={uid:user.uid,slot:sc.slot};
+    k.starChoice=null;
+    k.lastAction=`${me.name} استخدم النجمة كحرف ${letter}`;
+    if(hand.length===0)k.winnerUid=user.uid;
+    return k;
+  });
+  if(!result?.committed&&msg)msg.textContent='انتهت فرصة اللعب في هذا الدور.';
+}
+
+async function cancelStarChoice(){
+  await runTransaction(rr('public/kalim'),k=>{
+    const sc=k?.starChoice;if(!k||!sc||sc.uid!==user.uid)return k;
+    const n=Date.now();
+    if(!sc.resumed){
+      const elapsedAfterGrace=Math.max(0,n-(sc.graceUntil||n));
+      const remaining=Math.max(0,(sc.baseRemainingMs||0)-elapsedAfterGrace);
+      if(remaining<=0){k.timerRunning=false;k.remainingMs=0;k.bellStopped=true;k.transitionAt=n+2000;k.starChoice=null;k.lastAction='انتهى الوقت.';return k;}
+      k.remainingMs=remaining;k.deadline=n+remaining;k.timerRunning=true;
+    }
+    k.starChoice=null;k.lastAction='تم إلغاء اختيار النجمة.';return k;
+  });
+}
+
+async function undoSlot(slot){
+  await runTransaction(rr('public/kalim'),k=>{
+    if(!k||k.currentUid!==user.uid||k.transitionAt||k.starChoice)return k;
+    if(!k.turnPlay||k.turnPlay.uid!==user.uid||k.turnPlay.slot!==slot)return k;
+    const st=k.stacks?.[slot];if(!st||st.length<=1)return k;
+    const top=st[st.length-1];if(top.ownerUid!==user.uid||!top.card)return k;
+    st.pop();k.hands[user.uid]=k.hands[user.uid]||[];k.hands[user.uid].push(top.card);
+    k.turnPlay=null;if(k.winnerUid===user.uid)k.winnerUid=null;
+    k.lastAction=`${me.name} رجّع بطاقته ويقدر يختار بطاقة ثانية`;
+    return k;
+  });
+}
+
+// السحب متاح لكل لاعب في أي وقت، حتى لو لم يكن دوره.
+async function drawCard(){
+  await runTransaction(rr('public/kalim'),k=>{
+    if(!k||k.winnerUid)return k;
+    const hand=k.hands?.[user.uid];if(!hand)return k;
+    const c=k.deck?.pop();if(c){hand.push(c);k.lastAction=`${me.name} سحب بطاقة`;}
+    return k;
+  });
+}
+
+async function bell(){
+  await runTransaction(rr('public/kalim'),k=>{
+    if(!k||k.currentUid!==user.uid||k.starChoice)return k;
+    const n=Date.now();
+    if(!k.bellStopped){
+      k.remainingMs=k.timerRunning?Math.max(0,(k.deadline||n)-n):(k.remainingMs||0);
+      k.timerRunning=false;k.bellStopped=true;k.transitionAt=n+2000;k.lastAction=`${me.name} أنهى دوره`;
+      return k;
+    }
+    const ms=k.timerMs||14000;
+    k.currentIndex=((k.currentIndex||0)+1)%k.order.length;k.currentUid=k.order[k.currentIndex];
+    k.remainingMs=ms;k.deadline=n+ms;k.timerRunning=true;k.bellStopped=false;k.transitionAt=null;k.turnPlay=null;k.starChoice=null;
+    k.lastAction='بدأ دور اللاعب التالي';return k;
+  });
+}
+
+async function pauseResume(){
+  await runTransaction(rr('public/kalim'),k=>{
+    if(!k||k.transitionAt||k.starChoice)return k;
+    if(k.timerRunning){k.remainingMs=Math.max(0,(k.deadline||Date.now())-Date.now());k.timerRunning=false;k.lastAction='تم إيقاف الوقت.';}
+    else{k.deadline=Date.now()+(k.remainingMs||k.timerMs||14000);k.timerRunning=true;k.lastAction='تم استكمال الوقت.';}
+    return k;
+  });
+}
+
+async function resetKalimTimer(){
+  await runTransaction(rr('public/kalim'),k=>{
+    if(!k||k.transitionAt||k.starChoice)return k;
+    const ms=k.timerMs||14000,n=Date.now();
+    k.remainingMs=ms;k.deadline=n+ms;k.timerRunning=true;k.bellStopped=false;
+    k.lastAction=`أُعيد الوقت إلى ${Math.round(ms/1000)} ثانية.`;
+    return k;
+  });
+}
+
+async function tickKalimClock(){
+  if(!lastPublic)return;
+  const nowMs=Date.now();
+  const graceDue=lastPublic.starChoice&&!lastPublic.starChoice.resumed&&(lastPublic.starChoice.graceUntil||0)<=nowMs;
+  const timerDue=lastPublic.timerRunning&&(lastPublic.deadline||0)<=nowMs;
+  const transitionDue=!lastPublic.timerRunning&&lastPublic.transitionAt&&lastPublic.transitionAt<=nowMs;
+  if(!graceDue&&!timerDue&&!transitionDue)return;
+  await runTransaction(rr('public/kalim'),k=>{
+    if(!k)return k;const n=Date.now();
+    if(k.starChoice&&!k.starChoice.resumed&&(k.starChoice.graceUntil||0)<=n){
+      const deadline=(k.starChoice.graceUntil||n)+Math.max(0,k.starChoice.baseRemainingMs||0);
+      const remaining=Math.max(0,deadline-n);
+      k.starChoice.resumed=true;k.remainingMs=remaining;k.deadline=deadline;k.timerRunning=remaining>0;
+      k.lastAction='انتهت مهلة النجمة المجانية وبدأ الوقت الأساسي.';
+    }
+    if(k.timerRunning&&(k.deadline||0)<=n){
+      k.timerRunning=false;k.remainingMs=0;k.bellStopped=true;k.transitionAt=n+2000;k.starChoice=null;
+      k.lastAction='انتهى الوقت.';
+      return k;
+    }
+    if(!k.timerRunning&&k.transitionAt&&k.transitionAt<=n){
+      const ms=k.timerMs||14000;
+      k.currentIndex=((k.currentIndex||0)+1)%k.order.length;k.currentUid=k.order[k.currentIndex];
+      k.remainingMs=ms;k.deadline=n+ms;k.timerRunning=true;k.bellStopped=false;k.transitionAt=null;k.turnPlay=null;k.starChoice=null;
+      k.lastAction='بدأ دور اللاعب التالي تلقائيًا.';
+    }
+    return k;
+  });
+}
+
 let chatOpen=false;
-let chatCache={};function renderChat(v){chatCache=v;renderChatCache()}function renderChatCache(){const b=$("chatBox");if(!b)return;const arr=Object.values(chatCache||{}).sort((a,b)=>(a.ts||0)-(b.ts||0)).slice(-30);b.innerHTML=arr.map(m=>`<div class="chat-msg"><b>${escapeHtml(m.name)}</b>: ${escapeHtml(m.text)}</div>`).join('');b.scrollTop=b.scrollHeight;}
-async function sendChat(){const i=$("chatInput"),t=i.value.trim();if(!t)return;i.value='';const p=push(rr('chat'));await set(p,{uid:user.uid,name:me.name,text:t,ts:now()});}
-setInterval(()=>{const e=$("kTimer");if(e&&lastPublic)e.textContent=Math.ceil(rem(lastPublic)/1000);if(meta?.game==='kalim'&&meta?.status==='playing')tickKalimClock();},250);
+let chatCache={};
+function renderChat(v){chatCache=v;renderChatCache();}
+function renderChatCache(){
+  const b=$("chatBox");if(!b)return;
+  const arr=Object.values(chatCache||{}).sort((a,b)=>(a.ts||0)-(b.ts||0)).slice(-30);
+  b.innerHTML=arr.map(m=>`<div class="chat-msg"><b>${escapeHtml(m.name)}</b>: ${escapeHtml(m.text)}</div>`).join('');b.scrollTop=b.scrollHeight;
+}
+async function sendChat(){const i=$("chatInput"),t=i?.value.trim();if(!t)return;i.value='';const p=push(rr('chat'));await set(p,{uid:user.uid,name:me.name,text:t,ts:now()});}
+
+setInterval(()=>{
+  const e=$("kTimer");if(e&&lastPublic)e.textContent=Math.ceil(rem(lastPublic)/1000);
+  const sg=$("starGraceText");
+  if(sg&&lastPublic?.starChoice?.uid===user?.uid){sg.textContent=lastPublic.starChoice.resumed?'بدأ وقتك الأساسي':`المهلة المجانية: ${Math.ceil(starGraceRemaining(lastPublic)/1000)} ث`;}
+  if(meta?.game==='kalim'&&meta?.status==='playing')tickKalimClock();
+},250);
 boot().catch(e=>{$("joinMsg").textContent=e.message});
