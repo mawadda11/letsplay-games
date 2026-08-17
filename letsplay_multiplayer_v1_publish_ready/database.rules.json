@@ -92,14 +92,6 @@
           "$msg": {
             ".write": "auth != null && root.child('rooms').child($room).child('members').child(auth.uid).exists() && !data.exists() && newData.child('uid').val() === auth.uid"
           }
-        },
-        "ownerPlayerJoin": {
-          "$uid": {
-            ".read": "auth != null && (auth.uid === $uid || root.child('rooms').child($room).child('meta/ownerUid').val() === auth.uid)",
-            ".write": "auth != null && (auth.uid === $uid || root.child('rooms').child($room).child('meta/ownerUid').val() === auth.uid)"
-          },
-          ".read": "auth != null && root.child('rooms').child($room).child('meta/ownerUid').val() === auth.uid",
-          ".write": "auth != null && root.child('rooms').child($room).child('meta/ownerUid').val() === auth.uid"
         }
       }
     }
