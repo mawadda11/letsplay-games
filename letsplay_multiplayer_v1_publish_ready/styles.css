@@ -61,3 +61,21 @@
 .host-play-area{margin-top:6px}
 .host-hand-title{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
 @media(max-width:560px){.timer-stepper{grid-template-columns:48px minmax(100px,140px) 48px}.timer-stepper-value b{font-size:27px}}
+
+/* v5: player-first host flow + responsive Atrash actions */
+button,.primary,.secondary,.vote-option{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.owner-lobby-controls,.lobby-owner-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-top:14px}
+.owner-lobby-controls .field{flex:1 1 180px;margin:0}
+.lobby-owner-tools button{flex:1 1 180px}
+.atrash-player-stage{max-width:720px;margin-inline:auto}
+.atrash-entry{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px}
+.atrash-entry input{min-width:0}
+@media(max-width:640px){
+  .atrash-entry{grid-template-columns:1fr}
+  .atrash-entry .primary{width:100%;min-height:52px;font-size:1rem}
+  .vote-list{gap:10px}
+  .vote-option{min-height:52px;font-size:1rem}
+  #voteBtn{width:100%;min-height:52px}
+  .owner-lobby-controls,.lobby-owner-tools{display:grid;grid-template-columns:1fr}
+  .cohost-fab{bottom:calc(16px + env(safe-area-inset-bottom))}
+}

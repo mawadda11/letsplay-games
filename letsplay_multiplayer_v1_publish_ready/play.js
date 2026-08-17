@@ -1,47 +1,344 @@
 import { db, ensureAuth, ref, get, set, update, remove, onValue, push, runTransaction, onDisconnect } from "./firebase.js";
-import { activeFace, otherFace } from "./kalim-engine.js";
-import { $, roomCodeFromUrl, escapeHtml, now } from "./common.js";
-const room=roomCodeFromUrl();let user,meta,me,members={},selectedCard=null,selectedVote=null,lastPublic=null;const rr=p=>ref(db,`rooms/${room}${p?'/'+p:''}`);
+import { ATRASH_PAIRS } from "./data.js";
+import { createKalimState, activeFace, otherFace } from "./kalim-engine.js";
+import { $, roomCodeFromUrl, escapeHtml, now, cryptoRand } from "./common.js";
+
+const room=roomCodeFromUrl();
+let user,meta,me,members={},selectedCard=null,selectedVote=null,lastPublic=null;
+let ownerTimerSeconds=14,atrashProcessing=false,submittingAnswer=false,submittingVote=false;
+const rr=p=>ref(db,`rooms/${room}${p?'/'+p:''}`);
+const isOwner=()=>user?.uid===meta?.ownerUid||me?.role==='owner';
+const activeMembers=()=>Object.entries(members).filter(([,m])=>m&&m.name&&m.online!==false);
+
 async function boot(){
   if(!room){$("joinMsg").textContent='كود الغرفة غير موجود';return;}
-  user=await ensureAuth();const ms=await get(rr('meta'));if(!ms.exists()){$("joinMsg").textContent='الغرفة غير موجودة';return;}meta=ms.val();$("joinRoomLabel").textContent=room;
+  user=await ensureAuth();
+  const ms=await get(rr('meta'));
+  if(!ms.exists()){$("joinMsg").textContent='الغرفة غير موجودة';return;}
+  meta=ms.val();$("joinRoomLabel").textContent=room;
   if(meta.game==='top10'){$("joinStage").innerHTML='<div class="stage"><h2>Top 10 لا تحتاج دخول لاعب</h2><div class="muted">ارجع للشاشة المشتركة. إذا كنت حكم Top 10 استخدم رابط الحكم الخاص الذي يظهر للهوست.</div></div>';return;}
   const old=(await get(rr(`members/${user.uid}`))).val();
-  if(old){me=old;$("joinStage").classList.add('hidden');$("playerApp").classList.remove('hidden');startListeners();return;}
+  if(old){
+    me=old;$("joinStage").classList.add('hidden');$("playerApp").classList.remove('hidden');startListeners();return;
+  }
 }
-$("joinRoomBtn").onclick=async()=>{try{const name=$("playerName").value.trim();if(!name)throw new Error('اكتب اسمك');const ms=(await get(rr('meta'))).val();if(ms.status!=='lobby')throw new Error('بدأت اللعبة بالفعل ولا يمكن دخول لاعب جديد الآن.');me={name,joinedAt:now(),online:true};await set(rr(`members/${user.uid}`),me);onDisconnect(rr(`members/${user.uid}/online`)).set(false);$("joinStage").classList.add('hidden');$("playerApp").classList.remove('hidden');startListeners();}catch(e){$("joinMsg").textContent=e.message;}};
-function startListeners(){update(rr(`members/${user.uid}`),{online:true});onValue(rr('members'),s=>{members=s.val()||{};if(!members[user.uid]){$("playerApp").innerHTML='<div class="stage"><h2>تم إخراجك من الغرفة</h2></div>';return;}me=members[user.uid]||me;refreshCohostUi();render();});onValue(rr('meta'),s=>{meta=s.val()||meta;refreshCohostUi();render();});if(meta.game==='atrash'){onValue(rr('public/atrash'),s=>{lastPublic=s.val();renderAtrash(lastPublic)});onValue(rr(`private/${user.uid}`),()=>renderAtrash(lastPublic));}if(meta.game==='kalim'){onValue(rr('public/kalim'),s=>{lastPublic=s.val();renderKalim(lastPublic)});onValue(rr('chat'),s=>renderChat(s.val()||{}));}if(meta.game==='top10')renderTop10Player();}
-function render(){if(meta?.status==='lobby'){renderLobby();return;}if(meta?.game==='atrash'){if(lastPublic)renderAtrash(lastPublic);else $("playerApp").innerHTML='<div class="stage"><h2>بدأت اللعبة</h2><div class="muted">جاري تحميل سؤالك…</div></div>';return;}if(meta?.game==='kalim'){if(lastPublic)renderKalim(lastPublic);return;}if(meta?.game==='top10')renderTop10Player();}
+
+$("joinRoomBtn").onclick=async()=>{
+  try{
+    const name=$("playerName").value.trim();if(!name)throw new Error('اكتب اسمك');
+    const ms=(await get(rr('meta'))).val();
+    if(ms.status!=='lobby')throw new Error('بدأت اللعبة بالفعل ولا يمكن دخول لاعب جديد الآن.');
+    me={name,joinedAt:now(),online:true,role:'player'};
+    await set(rr(`members/${user.uid}`),me);
+    $("joinStage").classList.add('hidden');$("playerApp").classList.remove('hidden');startListeners();
+  }catch(e){$("joinMsg").textContent=e.message;}
+};
+
+function startListeners(){
+  update(rr(`members/${user.uid}`),{online:true});
+  onDisconnect(rr(`members/${user.uid}/online`)).set(false);
+  onValue(rr('members'),s=>{
+    members=s.val()||{};
+    if(!members[user.uid]){
+      $("playerApp").innerHTML='<div class="stage"><h2>تم إخراجك من الغرفة</h2></div>';
+      return;
+    }
+    me=members[user.uid]||me;refreshCohostUi();render();
+  });
+  onValue(rr('meta'),s=>{meta=s.val()||meta;refreshCohostUi();render();});
+  if(meta.game==='atrash'){
+    onValue(rr('public/atrash'),s=>{lastPublic=s.val();renderAtrash(lastPublic);if(isOwner())checkAtrashProgress();});
+    onValue(rr(`private/${user.uid}`),()=>renderAtrash(lastPublic));
+    onValue(rr(`answerStatus/${user.uid}`),()=>{if(lastPublic?.phase==='answering')renderAtrash(lastPublic);});
+    onValue(rr(`voteStatus/${user.uid}`),()=>{if(lastPublic?.phase==='voting')renderAtrash(lastPublic);});
+    if(isOwner()){
+      onValue(rr('answerStatus'),()=>checkAtrashProgress());
+      onValue(rr('voteStatus'),()=>checkAtrashProgress());
+    }
+  }
+  if(meta.game==='kalim'){
+    onValue(rr('public/kalim'),s=>{lastPublic=s.val();renderKalim(lastPublic)});
+    onValue(rr('chat'),s=>renderChat(s.val()||{}));
+  }
+}
+
+function render(){
+  if(meta?.status==='lobby'){renderLobby();return;}
+  if(meta?.game==='atrash'){
+    if(lastPublic)renderAtrash(lastPublic);
+    else $("playerApp").innerHTML='<div class="stage"><h2>بدأت اللعبة</h2><div class="muted">جاري تحميل سؤالك…</div></div>';
+    return;
+  }
+  if(meta?.game==='kalim'){if(lastPublic)renderKalim(lastPublic);return;}
+  if(meta?.game==='top10')renderTop10Player();
+}
+
+function lobbyPeopleHtml(){
+  const ownerUid=meta?.ownerUid, ownerMember=ownerUid?members[ownerUid]:null;
+  let people=`<div class="member ${ownerMember?.online===false?'offline':''}"><b>👑 ${escapeHtml(meta?.ownerName||ownerMember?.name||'الهوست')}</b><span class="small">${ownerMember?.online===false?'غير متصل':'الهوست الأساسي · لاعب'}</span></div>`;
+  people+=Object.entries(members).filter(([uid,m])=>uid!==ownerUid&&m?.role!=='owner').map(([uid,m])=>`<div class="member ${m.online===false?'offline':''}"><b>${escapeHtml(m.name)} ${m.role==='cohost'?'🛡️':''}</b><span class="small">${m.online===false?'غير متصل':m.role==='cohost'?'هوست مساعد':'متصل'}</span>${me?.role==='cohost'&&uid!==user.uid?`<button class="danger coKick" data-u="${uid}">طرد</button>`:''}</div>`).join('');
+  return people;
+}
+
 function renderLobby(){
   const game=meta.game==='atrash'?'الأطرش في الزفة':meta.game==='kalim'?'كَلِم':'Top 10';
-  const ownerUid=meta?.ownerUid, ownerMember=ownerUid?members[ownerUid]:null;
-  let people=`<div class="member ${ownerMember?.online===false?'offline':''}"><b>👑 ${escapeHtml(meta?.ownerName||ownerMember?.name||'الهوست')}</b><span class="small">${ownerMember?.online===false?'غير متصل':'الهوست الأساسي'}</span></div>`;
-  people+=Object.entries(members).filter(([uid,m])=>uid!==ownerUid&&m?.role!=='owner').map(([uid,m])=>`<div class="member"><b>${escapeHtml(m.name)} ${m.role==='cohost'?'🛡️':''}</b><span class="small">${m.online===false?'غير متصل':m.role==='cohost'?'هوست مساعد':'متصل'}</span>${me?.role==='cohost'&&uid!==user.uid?`<button class="danger coKick" data-u="${uid}">طرد</button>`:''}</div>`).join('');
-  $("playerApp").innerHTML=`<div class="panel"><div class="small">الغرفة ${room}</div><h2>${game}</h2><div class="notice">دخلت باسم <b>${escapeHtml(me?.name||'')}</b>. بانتظار بدء اللعبة من الشاشة العامة.</div><div class="member-list">${people}</div></div>`;
+  const count=activeMembers().length;
+  let ownerControls='';
+  if(isOwner()&&meta.game==='atrash'){
+    ownerControls=`<div class="owner-lobby-controls">
+      <div class="field"><label>عدد الجولات</label><input id="ownerRoundsInput" type="number" min="1" max="40" value="10"></div>
+      <button class="primary" id="ownerStartAtr" ${count<3?'disabled':''}>ابدأ الجولة الأولى</button>
+      <div class="small">${count<3?`تحتاج 3 لاعبين على الأقل. الموجود الآن ${count}.`:'جاهزين للبدء.'}</div>
+    </div>`;
+  }else if(isOwner()&&meta.game==='kalim'){
+    ownerControls=`<div class="owner-lobby-controls">
+      <div class="field"><label>وقت الدور</label>
+        <div class="timer-stepper">
+          <button class="secondary" id="ownerTimerMinus" type="button">−</button>
+          <div class="timer-stepper-value"><b id="ownerTimerValue">${ownerTimerSeconds}</b><span>ثانية</span></div>
+          <button class="secondary" id="ownerTimerPlus" type="button">+</button>
+        </div>
+      </div>
+      <button class="primary" id="ownerStartKalim" ${count<2?'disabled':''}>ابدأ كَلِم</button>
+      <div class="small">${count<2?`تحتاج لاعبين على الأقل. الموجود الآن ${count}.`:'جاهزين للبدء.'}</div>
+    </div>`;
+  }
+  const ownerTools=isOwner()?`<div class="lobby-owner-tools">
+    <button class="secondary" id="copyJoinLink">🔗 نسخ رابط الدخول</button>
+    <button class="secondary" id="openPublicDisplay">🖥️ فتح الشاشة العامة</button>
+  </div>`:'';
+  $("playerApp").innerHTML=`<div class="panel player-lobby">
+    <div class="small">الغرفة ${room}</div><h2>${game}</h2>
+    <div class="notice">أنت داخل الغرفة باسم <b>${escapeHtml(me?.name||'')}</b>${isOwner()?' 👑':''}.</div>
+    <div class="member-list">${lobbyPeopleHtml()}</div>
+    ${ownerControls}${ownerTools}
+  </div>`;
   document.querySelectorAll('.coKick').forEach(b=>b.onclick=async()=>{if(confirm('طرد هذا اللاعب؟'))await remove(rr(`members/${b.dataset.u}`));});
+  const c=$("copyJoinLink");if(c)c.onclick=async()=>{
+    const url=new URL(`play.html?room=${room}`,location.href).href;
+    try{await navigator.clipboard.writeText(url);c.textContent='✅ تم النسخ';setTimeout(()=>c.textContent='🔗 نسخ رابط الدخول',1200);}
+    catch{prompt('انسخ رابط الدخول:',url);}
+  };
+  const d=$("openPublicDisplay");if(d)d.onclick=()=>window.open(`display.html?room=${room}`,'_blank');
+  const sa=$("ownerStartAtr");if(sa)sa.onclick=startAtrashFirstFromPlayer;
+  const sk=$("ownerStartKalim");if(sk)sk.onclick=startKalimFromPlayer;
+  const mn=$("ownerTimerMinus"),pl=$("ownerTimerPlus");
+  const sync=()=>{const v=$("ownerTimerValue");if(v)v.textContent=ownerTimerSeconds;if(mn)mn.disabled=ownerTimerSeconds<=9;if(pl)pl.disabled=ownerTimerSeconds>=15;};
+  if(mn)mn.onclick=()=>{ownerTimerSeconds=Math.max(9,ownerTimerSeconds-1);sync();};
+  if(pl)pl.onclick=()=>{ownerTimerSeconds=Math.min(15,ownerTimerSeconds+1);sync();};
+  sync();refreshCohostUi();
 }
-function renderTop10Player(){$("playerApp").innerHTML='<div class="panel"><h2>Top 10</h2><div class="notice">Top 10 تُلعب من الشاشة المشتركة. إذا كنتِ الهوست استخدمي رابط الهوست الذي يظهر قبل بدء اللعبة.</div></div>';}
+
+function renderTop10Player(){$("playerApp").innerHTML='<div class="panel"><h2>Top 10</h2><div class="notice">Top 10 تُلعب من الشاشة المشتركة.</div></div>';}
+
 function refreshCohostUi(){
-  const btn=$("cohostBtn");if(!btn)return;const isOwner=user?.uid===meta?.ownerUid||me?.role==='owner',isCo=me?.role==='cohost';const canManage=isOwner||isCo;
-  btn.classList.toggle('hidden',!canManage);btn.textContent=isOwner?'👑 إدارة':'🛡️ إدارة';if(!canManage){$("cohostPanel").classList.add('hidden');return;}
-  btn.onclick=()=>{renderCohostPanel();$("cohostPanel").classList.remove('hidden');};$("cohostClose").onclick=()=>$("cohostPanel").classList.add('hidden');
+  const btn=$("cohostBtn");if(!btn)return;const owner=isOwner(),isCo=me?.role==='cohost';const canManage=owner||isCo;
+  btn.classList.toggle('hidden',!canManage);btn.textContent=owner?'👑 إدارة':'🛡️ إدارة';
+  if(!canManage){$("cohostPanel").classList.add('hidden');return;}
+  btn.onclick=()=>{renderCohostPanel();$("cohostPanel").classList.remove('hidden');};
+  $("cohostClose").onclick=()=>$("cohostPanel").classList.add('hidden');
 }
+
 function renderCohostPanel(){
-  const list=$("cohostList");if(!list)return;const isOwner=user?.uid===meta?.ownerUid||me?.role==='owner';list.innerHTML="";
-  const owner=document.createElement('div');owner.className='member';owner.innerHTML=`<span><b>👑 ${escapeHtml(meta?.ownerName||members[meta?.ownerUid]?.name||'الهوست')}</b><div class="small">الهوست الأساسي · لاعب</div></span><span class="small">لا يمكن طرده</span>`;list.appendChild(owner);
-  Object.entries(members).forEach(([uid,m])=>{if(uid===user.uid||uid===meta?.ownerUid||m?.role==='owner')return;const d=document.createElement('div');d.className='member';const roleBtn=isOwner?`<button class="secondary ownerRoleBtn" data-u="${uid}" data-role="${m.role||''}">${m.role==='cohost'?'إزالة الهوست':'تعيين هوست'}</button>`:'';d.innerHTML=`<span><b>${escapeHtml(m.name)}</b><div class="small">${m.role==='cohost'?'هوست مساعد':'لاعب'}</div></span><span style="display:flex;gap:6px;flex-wrap:wrap">${roleBtn}<button class="danger cohostKick" data-u="${uid}">طرد</button></span>`;list.appendChild(d);});
+  const list=$("cohostList");if(!list)return;const owner=isOwner();list.innerHTML="";
+  const o=document.createElement('div');o.className='member';
+  o.innerHTML=`<span><b>👑 ${escapeHtml(meta?.ownerName||members[meta?.ownerUid]?.name||'الهوست')}</b><div class="small">الهوست الأساسي · لاعب</div></span><span class="small">لا يمكن طرده</span>`;list.appendChild(o);
+  Object.entries(members).forEach(([uid,m])=>{
+    if(uid===user.uid||uid===meta?.ownerUid||m?.role==='owner')return;
+    const d=document.createElement('div');d.className='member';
+    const roleBtn=owner?`<button class="secondary ownerRoleBtn" data-u="${uid}" data-role="${m.role||''}">${m.role==='cohost'?'إزالة الهوست':'تعيين هوست'}</button>`:'';
+    d.innerHTML=`<span><b>${escapeHtml(m.name)}</b><div class="small">${m.role==='cohost'?'هوست مساعد':'لاعب'}</div></span><span style="display:flex;gap:6px;flex-wrap:wrap">${roleBtn}<button class="danger cohostKick" data-u="${uid}">طرد</button></span>`;
+    list.appendChild(d);
+  });
   document.querySelectorAll('.ownerRoleBtn').forEach(b=>b.onclick=async()=>{await update(rr(`members/${b.dataset.u}`),{role:b.dataset.role==='cohost'?'player':'cohost'});renderCohostPanel();});
   document.querySelectorAll('.cohostKick').forEach(b=>b.onclick=async()=>{if(confirm('طرد هذا اللاعب؟'))await remove(rr(`members/${b.dataset.u}`));});
-  const extra=$("cohostExtra");extra.innerHTML=meta?.game==='kalim'?'<button class="secondary" id="cohostReturnTurn" style="width:100%;margin-top:8px">↩ إرجاع الدور لأي لاعب</button>':'';
+  const extra=$("cohostExtra");
+  const parts=[];
+  if(owner)parts.push('<button class="secondary" id="managePublicDisplay" style="width:100%;margin-top:8px">🖥️ فتح الشاشة العامة</button>');
+  if(meta?.game==='kalim')parts.push('<button class="secondary" id="cohostReturnTurn" style="width:100%;margin-top:8px">↩ إرجاع الدور لأي لاعب</button>');
+  extra.innerHTML=parts.join('');
   const rb=$("cohostReturnTurn");if(rb)rb.onclick=cohostReturnKalimTurn;
+  const dp=$("managePublicDisplay");if(dp)dp.onclick=()=>window.open(`display.html?room=${room}`,'_blank');
 }
+
 async function cohostReturnKalimTurn(){
-  const k=(await get(rr('public/kalim'))).val();if(!k)return;const choices=(k.order||[]).map((u,i)=>`${i+1}: ${members[u]?.name||u}`).join('\n');const n=prompt('اختاري رقم اللاعب:\n'+choices);const idx=Number(n)-1;if(idx<0||idx>=k.order.length)return;const ms=k.timerMs||14000;await update(rr('public/kalim'),{currentIndex:idx,currentUid:k.order[idx],remainingMs:ms,deadline:Date.now()+ms,timerRunning:true,bellStopped:false,transitionAt:null,lastAction:`أُعيد الدور إلى ${members[k.order[idx]]?.name||''}`});$("cohostPanel").classList.add('hidden');
+  const k=(await get(rr('public/kalim'))).val();if(!k)return;
+  const choices=(k.order||[]).map((u,i)=>`${i+1}: ${members[u]?.name||u}`).join('\n');
+  const n=prompt('اختاري رقم اللاعب:\n'+choices);const idx=Number(n)-1;if(idx<0||idx>=k.order.length)return;
+  const ms=k.timerMs||14000;
+  await update(rr('public/kalim'),{currentIndex:idx,currentUid:k.order[idx],remainingMs:ms,deadline:Date.now()+ms,timerRunning:true,bellStopped:false,transitionAt:null,lastAction:`أُعيد الدور إلى ${members[k.order[idx]]?.name||''}`});
+  $("cohostPanel").classList.add('hidden');
 }
-// Atrash
-async function renderAtrash(p){if(!p){renderLobby();return;}if(p.phase==='answering'){const priv=(await get(rr(`private/${user.uid}`))).val();const ans=(await get(rr(`answers/${user.uid}`))).val();if(ans){$("playerApp").innerHTML='<div class="stage"><h2>تم إرسال جوابك ✓</h2><div class="muted">انتظري باقي اللاعبين.</div></div>';return;}$("playerApp").innerHTML=`<div class="stage"><div class="small">سؤالك الخاص — الجولة ${p.round}</div><div class="secret-question">${escapeHtml(priv?.question||'جاري تجهيز سؤالك…')}</div><div class="entry" style="width:100%"><input id="atrAnswer" placeholder="اكتب جوابك..."><button class="primary" id="atrSend">إرسال</button></div><div class="notice">بعد الإرسال لن تظهر إجابات البقية إلا لما يخلص الجميع.</div></div>`;const b=$("atrSend");if(b)b.onclick=sendAtrashAnswer;return;}if(p.phase==='revealing'){$("playerApp").innerHTML='<div class="stage"><h2>لحظة…</h2><div class="muted">جاري إظهار الإجابات على الشاشة العامة.</div></div>';return;}if(p.phase==='discussion'){$("playerApp").innerHTML=`<div class="stage"><div class="real-question"><span class="small">السؤال الحقيقي</span><b>${escapeHtml(p.mainQuestion)}</b></div><div class="answer-list">${Object.values(p.revealedAnswers||{}).map(a=>`<div class="answer-item"><b>${escapeHtml(a.name)}</b><span>${escapeHtml(a.text)}</span></div>`).join('')}</div><div class="notice">ناقشوا بينكم. التصويت يبدأ من الشاشة العامة.</div></div>`;return;}if(p.phase==='voting'){const voted=(await get(rr(`votes/${user.uid}`))).val();if(voted){$("playerApp").innerHTML='<div class="stage"><h2>تم تصويتك ✓</h2><div class="muted">النتائج تظهر بعد ما يصوت الجميع.</div></div>';return;}selectedVote=null;$("playerApp").innerHTML=`<div class="panel"><h2>مين الأطرش؟ 🗳️</h2><div class="vote-list">${Object.entries(members).filter(([u])=>u!==user.uid).map(([u,m])=>`<button class="vote-option" data-u="${u}">${escapeHtml(m.name)}</button>`).join('')}</div><button class="primary" id="voteBtn" disabled>تأكيد التصويت</button></div>`;document.querySelectorAll('.vote-option').forEach(b=>b.onclick=()=>{selectedVote=b.dataset.u;document.querySelectorAll('.vote-option').forEach(x=>x.classList.toggle('selected',x===b));$("voteBtn").disabled=false;});$("voteBtn").onclick=sendVote;return;}if(p.phase==='tallying'){$("playerApp").innerHTML='<div class="stage"><h2>نحسب الأصوات…</h2></div>';return;}if(p.phase==='results'){$("playerApp").innerHTML=`<div class="stage"><div class="small">الأطرش</div><div class="winner">${escapeHtml(p.outsiderName)}</div><div class="small">سؤال الأطرش</div><div class="secret-question">${escapeHtml(p.outsiderQuestion)}</div><div class="notice">الأطرش أخذ ${p.outsiderPoints} · حد الربع ${p.threshold}</div><div class="score-list" style="width:100%">${Object.values(p.scores||{}).sort((a,b)=>(b.score||0)-(a.score||0)).map(s=>`<div class="score-item"><b>${escapeHtml(s.name)}</b><span>${s.score||0} نقطة</span></div>`).join('')}</div><div class="muted">بانتظار الجولة التالية من الشاشة العامة.</div></div>`;return;}if(p.phase==='finished'){$("playerApp").innerHTML='<div class="stage"><h2>انتهت اللعبة 👏</h2></div>';return;}}
-async function sendAtrashAnswer(){const t=$("atrAnswer").value.trim();if(!t)return;await set(rr(`answers/${user.uid}`),{text:t,name:me.name,submittedAt:now()});await set(rr(`answerStatus/${user.uid}`),true);}
-async function sendVote(){if(!selectedVote)return;await set(rr(`votes/${user.uid}`),{targetUid:selectedVote,submittedAt:now()});await set(rr(`voteStatus/${user.uid}`),true);}
+
+// Atrash owner controller
+async function startAtrashFirstFromPlayer(){
+  if(!isOwner())return;
+  const count=activeMembers().length;if(count<3)return;
+  const max=Math.max(1,Math.min(40,+$("ownerRoundsInput")?.value||10));
+  const scores={};for(const [uid,m] of activeMembers())scores[uid]={name:m.name,score:0};
+  await set(rr("adminPrivate/atrash"),{used:{},maxRounds:max});
+  await set(rr("public/atrash"),{phase:"ready",round:0,maxRounds:max,scores});
+  await update(rr("meta"),{status:"playing"});
+  await startAtrashRoundFromPlayer();
+}
+
+async function startAtrashRoundFromPlayer(){
+  if(!isOwner())return;
+  const list=activeMembers();if(list.length<3){alert('تحتاج 3 لاعبين على الأقل');return;}
+  const adm=(await get(rr("adminPrivate/atrash"))).val()||{used:{},maxRounds:10};
+  const pub=(await get(rr("public/atrash"))).val()||{};
+  const r=(pub.round||0)+1;
+  if(r>(adm.maxRounds||10)){await update(rr("public/atrash"),{phase:'finished'});return;}
+  let choices=ATRASH_PAIRS.map((_,i)=>i).filter(i=>!adm.used?.[i]);
+  if(!choices.length){adm.used={};choices=ATRASH_PAIRS.map((_,i)=>i);}
+  const qi=choices[cryptoRand(choices.length)];adm.used=adm.used||{};adm.used[qi]=true;
+  const outsider=list[cryptoRand(list.length)][0];
+  await set(rr("adminPrivate/atrash"),{...adm,current:{questionIndex:qi,outsiderUid:outsider}});
+  await Promise.all([remove(rr("private")),remove(rr("answers")),remove(rr("answerStatus")),remove(rr("votes")),remove(rr("voteStatus"))]);
+  const pair=ATRASH_PAIRS[qi];const rootUpdates={};
+  for(const [uid] of list)rootUpdates[`rooms/${room}/private/${uid}`]={question:uid===outsider?pair.outsider:pair.main,round:r};
+  await update(ref(db),rootUpdates);
+  await set(rr("public/atrash"),{phase:'answering',round:r,maxRounds:adm.maxRounds,scores:pub.scores||{},message:'بانتظار إجابات الجميع…'});
+}
+
+async function checkAtrashProgress(){
+  if(!isOwner()||atrashProcessing||meta?.game!=='atrash'||meta?.status!=='playing')return;
+  const p=(await get(rr("public/atrash"))).val();if(!p)return;
+  const list=activeMembers(),n=list.length;if(!n)return;
+  if(p.phase==='answering'){
+    const s=(await get(rr("answerStatus"))).val()||{};
+    if(Object.keys(s).filter(uid=>list.some(([u])=>u===uid)).length>=n){
+      atrashProcessing=true;
+      try{
+        await update(rr("public/atrash"),{phase:'revealing'});
+        const [ansSnap,admSnap]=await Promise.all([get(rr("answers")),get(rr("adminPrivate/atrash/current"))]);
+        const a=ansSnap.val()||{},cur=admSnap.val();if(!cur)return;
+        const pair=ATRASH_PAIRS[cur.questionIndex],revealed={};
+        for(const [uid,m] of list)revealed[uid]={name:m.name,text:a[uid]?.text||''};
+        await update(rr("public/atrash"),{phase:'discussion',mainQuestion:pair.main,revealedAnswers:revealed,message:'ناقشوا الإجابات ثم ابدأوا التصويت.'});
+      }finally{atrashProcessing=false;}
+    }
+  }else if(p.phase==='voting'){
+    const s=(await get(rr("voteStatus"))).val()||{};
+    if(Object.keys(s).filter(uid=>list.some(([u])=>u===uid)).length>=n){
+      atrashProcessing=true;
+      try{
+        await update(rr("public/atrash"),{phase:'tallying'});
+        const [vs,admSnap]=await Promise.all([get(rr("votes")),get(rr("adminPrivate/atrash/current"))]);
+        const votes=vs.val()||{},cur=admSnap.val();if(!cur)return;
+        const out=cur.outsiderUid,counts={};
+        Object.values(votes).forEach(v=>{if(v?.targetUid)counts[v.targetUid]=(counts[v.targetUid]||0)+1;});
+        const correct=Object.entries(votes).filter(([,v])=>v?.targetUid===out).map(([uid])=>uid);
+        const threshold=Math.ceil(n/4),outsiderPts=correct.length===0?2:(correct.length<=threshold?1:0);
+        const scores=structuredClone(p.scores||{});
+        for(const uid of correct){if(scores[uid])scores[uid].score=(scores[uid].score||0)+1;}
+        if(scores[out])scores[out].score=(scores[out].score||0)+outsiderPts;
+        const pair=ATRASH_PAIRS[cur.questionIndex];
+        await update(rr("public/atrash"),{phase:'results',outsiderUid:out,outsiderName:members[out]?.name||'',outsiderQuestion:pair.outsider,voteCounts:counts,correctVoters:correct,outsiderPoints:outsiderPts,threshold,scores,message:'انتهت الجولة.'});
+      }finally{atrashProcessing=false;}
+    }
+  }
+}
+
+function waitScreen(title,sub){
+  $("playerApp").innerHTML=`<div class="stage"><h2>${title}</h2><div class="muted">${sub}</div></div>`;
+}
+
+async function renderAtrash(p){
+  if(!p){renderLobby();return;}
+  if(p.phase==='answering'){
+    const [privSnap,ansSnap]=await Promise.all([get(rr(`private/${user.uid}`)),get(rr(`answers/${user.uid}`))]);
+    const priv=privSnap.val(),ans=ansSnap.val();
+    if(ans){waitScreen('تم إرسال جوابك ✓','بانتظار إجابات الجميع…');return;}
+    $("playerApp").innerHTML=`<div class="stage atrash-player-stage">
+      <div class="small">سؤالك الخاص — الجولة ${p.round}</div>
+      <div class="secret-question">${escapeHtml(priv?.question||'جاري تجهيز سؤالك…')}</div>
+      <form class="entry atrash-entry" id="atrAnswerForm" style="width:100%">
+        <input id="atrAnswer" autocomplete="off" enterkeyhint="send" placeholder="اكتب جوابك...">
+        <button class="primary" type="submit" id="atrSend">إرسال الإجابة</button>
+      </form>
+      <div class="notice" id="atrActionMsg">جوابك ما يظهر للبقية إلا بعد ما يخلص الجميع.</div>
+    </div>`;
+    $("atrAnswerForm").onsubmit=e=>{e.preventDefault();sendAtrashAnswer();};refreshCohostUi();return;
+  }
+  if(p.phase==='revealing'){waitScreen('لحظة…','جاري إظهار الإجابات.');return;}
+  if(p.phase==='discussion'){
+    const ownerButton=isOwner()?'<button class="primary" id="ownerStartVote">ابدأ التصويت</button>':'';
+    $("playerApp").innerHTML=`<div class="stage">
+      <div class="real-question"><span class="small">السؤال الحقيقي</span><b>${escapeHtml(p.mainQuestion)}</b></div>
+      <div class="answer-list">${Object.values(p.revealedAnswers||{}).map(a=>`<div class="answer-item"><b>${escapeHtml(a.name)}</b><span>${escapeHtml(a.text)}</span></div>`).join('')}</div>
+      <div class="notice">${isOwner()?'بعد النقاش ابدأ التصويت.':'ناقشوا الإجابات وانتظروا الهوست يبدأ التصويت.'}</div>${ownerButton}
+    </div>`;
+    const b=$("ownerStartVote");if(b)b.onclick=async()=>{b.disabled=true;await Promise.all([remove(rr("votes")),remove(rr("voteStatus"))]);await update(rr("public/atrash"),{phase:'voting',message:'التصويت سري.'});};
+    refreshCohostUi();return;
+  }
+  if(p.phase==='voting'){
+    const voted=(await get(rr(`votes/${user.uid}`))).val();
+    if(voted){waitScreen('تم تصويتك ✓','بانتظار تصويت الجميع…');return;}
+    selectedVote=null;
+    $("playerApp").innerHTML=`<div class="panel atrash-player-stage">
+      <h2>مين الأطرش؟ 🗳️</h2>
+      <div class="vote-list">${Object.entries(members).filter(([u,m])=>u!==user.uid&&m?.online!==false).map(([u,m])=>`<button type="button" class="vote-option" data-u="${u}">${escapeHtml(m.name)}</button>`).join('')}</div>
+      <button class="primary" id="voteBtn" disabled>تأكيد التصويت</button>
+      <div class="notice" id="voteActionMsg">اختيارك سري.</div>
+    </div>`;
+    document.querySelectorAll('.vote-option').forEach(b=>b.onclick=()=>{selectedVote=b.dataset.u;document.querySelectorAll('.vote-option').forEach(x=>x.classList.toggle('selected',x===b));$("voteBtn").disabled=false;});
+    $("voteBtn").onclick=sendVote;refreshCohostUi();return;
+  }
+  if(p.phase==='tallying'){waitScreen('نحسب الأصوات…','لحظات وتظهر النتيجة.');return;}
+  if(p.phase==='results'){
+    const next=isOwner()?'<button class="primary" id="ownerNextAtr">الجولة التالية</button>':'<div class="muted">بانتظار الهوست يبدأ الجولة التالية.</div>';
+    $("playerApp").innerHTML=`<div class="stage">
+      <div class="small">الأطرش</div><div class="winner">${escapeHtml(p.outsiderName)}</div>
+      <div class="small">سؤال الأطرش</div><div class="secret-question">${escapeHtml(p.outsiderQuestion)}</div>
+      <div class="notice">الأطرش أخذ ${p.outsiderPoints} · حد الربع ${p.threshold}</div>
+      <div class="score-list" style="width:100%">${Object.values(p.scores||{}).sort((a,b)=>(b.score||0)-(a.score||0)).map(s=>`<div class="score-item"><b>${escapeHtml(s.name)}</b><span>${s.score||0} نقطة</span></div>`).join('')}</div>${next}
+    </div>`;
+    const b=$("ownerNextAtr");if(b)b.onclick=()=>startAtrashRoundFromPlayer();refreshCohostUi();return;
+  }
+  if(p.phase==='finished'){$("playerApp").innerHTML='<div class="stage"><h2>انتهت اللعبة 👏</h2></div>';refreshCohostUi();return;}
+}
+
+async function sendAtrashAnswer(){
+  if(submittingAnswer)return;
+  const input=$("atrAnswer"),btn=$("atrSend"),msg=$("atrActionMsg");const t=input?.value.trim();if(!t)return;
+  submittingAnswer=true;if(btn){btn.disabled=true;btn.textContent='جاري الإرسال…';}if(input)input.disabled=true;if(msg)msg.textContent='جاري حفظ إجابتك…';
+  try{
+    const updates={};
+    updates[`rooms/${room}/answers/${user.uid}`]={text:t,name:me.name,submittedAt:now()};
+    updates[`rooms/${room}/answerStatus/${user.uid}`]=true;
+    await update(ref(db),updates);
+    waitScreen('تم إرسال جوابك ✓','بانتظار إجابات الجميع…');
+    if(isOwner())checkAtrashProgress();
+  }catch(e){
+    if(btn){btn.disabled=false;btn.textContent='إرسال الإجابة';}if(input)input.disabled=false;if(msg)msg.textContent='تعذر الإرسال، حاولي مرة ثانية.';
+  }finally{submittingAnswer=false;}
+}
+
+async function sendVote(){
+  if(submittingVote||!selectedVote)return;
+  const btn=$("voteBtn"),msg=$("voteActionMsg");submittingVote=true;
+  if(btn){btn.disabled=true;btn.textContent='جاري الإرسال…';}if(msg)msg.textContent='جاري حفظ تصويتك…';
+  try{
+    const updates={};
+    updates[`rooms/${room}/votes/${user.uid}`]={targetUid:selectedVote,submittedAt:now()};
+    updates[`rooms/${room}/voteStatus/${user.uid}`]=true;
+    await update(ref(db),updates);
+    waitScreen('تم تصويتك ✓','بانتظار تصويت الجميع…');
+    if(isOwner())checkAtrashProgress();
+  }catch(e){
+    if(btn){btn.disabled=false;btn.textContent='تأكيد التصويت';}if(msg)msg.textContent='تعذر إرسال التصويت، حاولي مرة ثانية.';
+  }finally{submittingVote=false;}
+}
+
+// Kalim owner start
+async function startKalimFromPlayer(){
+  if(!isOwner())return;
+  const list=activeMembers().sort((a,b)=>(a[1].joinedAt||0)-(b[1].joinedAt||0));if(list.length<2)return;
+  const k=createKalimState(list,ownerTimerSeconds);
+  await set(rr("public/kalim"),k);await update(rr("meta"),{status:'playing'});
+}
+
 // Kalim
 function face(c){return c?.useBack?c.b:c.a}function other(c){return c?.useBack?c.a:c.b}
 function cardHtml(c,i,sel=false){const f=face(c),o=other(c);return `<button class="game-card-letter ${sel?'selected':''} ${f==='★'?'star':''}" data-card="${i}"><span class="corner">${escapeHtml(o)}</span>${escapeHtml(f)}</button>`;}
