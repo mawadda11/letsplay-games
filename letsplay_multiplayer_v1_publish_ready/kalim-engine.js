@@ -6,11 +6,12 @@ export function makeKalimCard(){
   if(Math.random()<.5)[a,b]=[b,a]; return {a,b,useBack:false};
 }
 export function activeFace(c){return c?.useBack?c.b:c.a;} export function otherFace(c){return c?.useBack?c.a:c.b;}
-export function createKalimState(memberEntries){
+export function createKalimState(memberEntries,timerSeconds=14){
   const deck=shuffle(Array.from({length:520},makeKalimCard)); const hands={}; let di=0;
   for(const [uid] of memberEntries){ hands[uid]=deck.slice(di,di+10); di+=10; }
   const word=KALIM_START_WORDS[cryptoRand(KALIM_START_WORDS.length)];
   const stacks=word.map(l=>[{letter:l,other:ARABIC_LETTERS[cryptoRand(ARABIC_LETTERS.length)],ownerUid:null,card:null}]);
   const order=memberEntries.map(([uid])=>uid);
-  return {phase:"playing",order,currentIndex:0,currentUid:order[0],hands,deck:deck.slice(di),stacks,timerRunning:true,bellStopped:false,remainingMs:14000,deadline:Date.now()+14000,winnerUid:null,lastAction:"بدأت الجولة"};
+  const timerMs=Math.max(9000,Math.min(15000,Number(timerSeconds||14)*1000));
+  return {phase:"playing",order,currentIndex:0,currentUid:order[0],hands,deck:deck.slice(di),stacks,timerMs,timerRunning:true,bellStopped:false,remainingMs:timerMs,deadline:Date.now()+timerMs,transitionAt:null,winnerUid:null,lastAction:"بدأت الجولة"};
 }

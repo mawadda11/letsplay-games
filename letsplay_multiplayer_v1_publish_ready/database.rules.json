@@ -12,7 +12,7 @@
         "members": {
           "$uid": {
             ".read": "auth != null && (auth.uid === $uid || root.child('rooms').child($room).child('members').child(auth.uid).exists() || root.child('rooms').child($room).child('meta/ownerUid').val() === auth.uid || root.child('rooms').child($room).child('meta/hostUid').val() === auth.uid)",
-            ".write": "auth != null && ((auth.uid === $uid && root.child('rooms').child($room).child('meta').exists() && ((!data.exists() && root.child('rooms').child($room).child('meta/status').val() === 'lobby') || data.exists())) || root.child('rooms').child($room).child('meta/ownerUid').val() === auth.uid)"
+            ".write": "auth != null && ((auth.uid === $uid && root.child('rooms').child($room).child('meta').exists() && ((!data.exists() && root.child('rooms').child($room).child('meta/status').val() === 'lobby') || data.exists())) || root.child('rooms').child($room).child('meta/ownerUid').val() === auth.uid || (root.child('rooms').child($room).child('members').child(auth.uid).child('role').val() === 'cohost' && auth.uid !== $uid && data.exists() && !newData.exists()))"
           },
           ".read": "auth != null && (root.child('rooms').child($room).child('members').child(auth.uid).exists() || root.child('rooms').child($room).child('meta/ownerUid').val() === auth.uid || root.child('rooms').child($room).child('meta/hostUid').val() === auth.uid)"
         },

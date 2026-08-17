@@ -398,7 +398,7 @@
     .start-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
     .field{display:flex;flex-direction:column;gap:5px;margin-bottom:10px}
     .field label{font-size:11px;color:var(--muted)}
-    .field input{
+    .field input,.field select{
       width:100%;
       background:var(--panel3);
       color:#fff;border:1px solid var(--line);
@@ -545,6 +545,12 @@
           <label>عدد اللاعبين</label>
           <input id="playerCountInput" type="number" min="2" max="8" value="6" />
         </div>
+        <div class="field">
+          <label>وقت الدور</label>
+          <select id="timerSecondsInput">
+            <option>9</option><option>10</option><option>11</option><option>12</option><option>13</option><option selected>14</option><option>15</option>
+          </select>
+        </div>
       </div>
 
       <button class="start-btn" id="startBtn">ابدأ الجولة</button>
@@ -569,7 +575,7 @@
 
       <section class="table">
         <div class="turn" id="turnLabel">دور غيداء</div>
-        <div class="timer" id="timer">14.0</div>
+        <div class="timer" id="timer">14</div>
 
         <div class="word" id="word"></div>
 
@@ -601,7 +607,7 @@
       <div class="turn-picker-head">
         <div>
           <div class="turn-picker-title">تغيير / إرجاع الدور</div>
-          <div class="turn-picker-sub">اختاري أي لاعب وسيبدأ له وقت جديد من 14 ثانية.</div>
+          <div class="turn-picker-sub">اختاري أي لاعب وسيبدأ له وقت جديد حسب إعداد الجولة.</div>
         </div>
         <button class="turn-picker-close" id="turnPickerClose">×</button>
       </div>
@@ -653,10 +659,12 @@
   let currentPlayer = 0;
   let selectedIndex = null;
 
-  let timeLeft = 14.0;
+  let timerSeconds = 14;
+  let timeLeft = 14;
   let running = false;
   let bellStopped = false;
   let timerHandle = null;
+  let transitionHandle = null;
 
   let stacks = [];
   let drawDeck = [];
@@ -666,6 +674,7 @@
     startBtn: document.getElementById("startBtn"),
     playerNameInput: document.getElementById("playerNameInput"),
     playerCountInput: document.getElementById("playerCountInput"),
+    timerSecondsInput: document.getElementById("timerSecondsInput"),
     opponents: document.getElementById("opponents"),
     mycards: document.getElementById("mycards"),
     myName: document.getElementById("myName"),
@@ -899,7 +908,7 @@
   }
 
   function renderTimer(){
-    els.timer.textContent = timeLeft.toFixed(1);
+    els.timer.textContent = String(Math.ceil(timeLeft));
     els.timer.classList.toggle("low", timeLeft > 0 && timeLeft <= 3);
     els.timer.classList.toggle("ended", !running && timeLeft <= 0);
   }
@@ -934,6 +943,28 @@
     }catch(e){}
   }
 
+  function clearTransition(){
+    if(transitionHandle){ clearTimeout(transitionHandle); transitionHandle = null; }
+  }
+
+  function advanceTurn(auto=false){
+    clearTransition();
+    currentPlayer = (currentPlayer + 1) % playerNames.length;
+    viewerIndex = currentPlayer;
+    timeLeft = timerSeconds;
+    running = true;
+    bellStopped = false;
+    selectedIndex = null;
+    els.pauseBtn.textContent = "⏸ إيقاف";
+    toast(auto ? `بدأ وقت ${playerNames[currentPlayer]} تلقائيًا.` : `بدأ وقت ${playerNames[currentPlayer]}.`);
+    renderAll();
+  }
+
+  function armHiddenTransition(){
+    clearTransition();
+    transitionHandle = setTimeout(() => advanceTurn(true), 2000);
+  }
+
   function startTimerLoop(){
     if(timerHandle) clearInterval(timerHandle);
 
@@ -945,10 +976,12 @@
 
       if(timeLeft <= 0){
         running = false;
+        bellStopped = true;
         els.pauseBtn.textContent = "▶ استكمال";
         softBeep();
-        toast(`انتهى وقت ${playerNames[currentPlayer]} — الوقت توقف فقط.`);
+        toast(`انتهى وقت ${playerNames[currentPlayer]}.`);
         renderTimer();
+        armHiddenTransition();
       }
     }, 100);
   }
@@ -963,7 +996,8 @@
     viewerIndex = 0;
     currentPlayer = 0;
     selectedIndex = null;
-    timeLeft = 14.0;
+    timerSeconds = Math.max(9, Math.min(15, Number(els.timerSecondsInput.value || 14)));
+    timeLeft = timerSeconds;
     running = true;
     bellStopped = false;
 
@@ -1000,11 +1034,12 @@
   });
 
   els.restartBtn.addEventListener("click", () => {
-    timeLeft = 14.0;
+    clearTransition();
+    timeLeft = timerSeconds;
     running = true;
     bellStopped = false;
     els.pauseBtn.textContent = "⏸ إيقاف";
-    toast(`أُعيد وقت ${playerNames[currentPlayer]} إلى 14 ثانية.`);
+    toast(`أُعيد وقت ${playerNames[currentPlayer]} إلى ${timerSeconds} ثانية.`);
     renderTimer();
   });
 
@@ -1013,18 +1048,12 @@
       running = false;
       bellStopped = true;
       els.pauseBtn.textContent = "▶ استكمال";
-      toast(`${playerNames[currentPlayer]} أوقف وقته.`);
+      toast(`${playerNames[currentPlayer]} أنهى دوره.`);
+      armHiddenTransition();
+      renderAll();
     }else{
-      currentPlayer = (currentPlayer + 1) % playerNames.length;
-      viewerIndex = currentPlayer; // local pass-and-play simulation
-      timeLeft = 14.0;
-      running = true;
-      bellStopped = false;
-      selectedIndex = null;
-      els.pauseBtn.textContent = "⏸ إيقاف";
-      toast(`بدأ وقت ${playerNames[currentPlayer]}.`);
+      advanceTurn(false);
     }
-    renderAll();
   });
 
   els.drawBtn.addEventListener("click", () => {
@@ -1051,12 +1080,13 @@
         currentPlayer = index;
         viewerIndex = index; // local pass-and-play simulation
         selectedIndex = null;
-        timeLeft = 14.0;
+        clearTransition();
+        timeLeft = timerSeconds;
         running = true;
         bellStopped = false;
         els.pauseBtn.textContent = "⏸ إيقاف";
         els.turnPickerBackdrop.classList.remove("open");
-        toast(`تم إرجاع الدور إلى ${playerNames[currentPlayer]} وبدأ له 14 ثانية.`);
+        toast(`تم إرجاع الدور إلى ${playerNames[currentPlayer]} وبدأ له ${timerSeconds} ثانية.`);
         renderAll();
       });
 
