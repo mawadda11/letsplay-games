@@ -3,17 +3,21 @@ import { cryptoRand, shuffle } from "./common.js";
 
 function regularLetter(){ return KALIM_BALANCED_POOL[cryptoRand(KALIM_BALANCED_POOL.length)]; }
 
+let cardSeq=0;
+function cardId(){cardSeq+=1;return `k-${Date.now().toString(36)}-${cardSeq.toString(36)}-${Math.random().toString(36).slice(2,7)}`;}
+
 export function makeKalimCard(forceStar=false){
+  const id=cardId();
   if(forceStar){
     const letter=regularLetter();
     return Math.random()<.5
-      ? {a:"★",b:letter,useBack:false}
-      : {a:letter,b:"★",useBack:false};
+      ? {id,a:"★",b:letter,useBack:false}
+      : {id,a:letter,b:"★",useBack:false};
   }
   let a=regularLetter(), b=regularLetter();
   while(b===a)b=regularLetter();
   if(Math.random()<.5)[a,b]=[b,a];
-  return {a,b,useBack:false};
+  return {id,a,b,useBack:false};
 }
 
 export function activeFace(c){return c?.useBack?c.b:c.a;}
@@ -36,6 +40,6 @@ export function createKalimState(memberEntries,timerSeconds=14){
   return {
     phase:"playing",order,currentIndex:0,currentUid:order[0],hands,deck:deck.slice(di),stacks,
     timerMs,timerRunning:true,bellStopped:false,remainingMs:timerMs,deadline:Date.now()+timerMs,
-    transitionAt:null,turnPlay:null,starChoice:null,winnerUid:null,lastAction:"بدأت الجولة"
+    transitionAt:null,turnPlay:null,starChoice:null,lastDraws:{},winnerUid:null,lastAction:"بدأت الجولة"
   };
 }

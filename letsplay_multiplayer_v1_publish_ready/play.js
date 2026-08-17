@@ -8,6 +8,7 @@ let user,meta,me,members={},selectedCard=null,selectedVote=null,lastPublic=null;
 let ownerTimerSeconds=14,atrashProcessing=false,atrashActionProcessing=false,submittingAnswer=false,submittingVote=false;
 const rr=p=>ref(db,`rooms/${room}${p?'/'+p:''}`);
 const isOwner=()=>user?.uid===meta?.ownerUid||me?.role==='owner';
+const canModerateKalim=()=>isOwner()||me?.role==='cohost';
 const activeMembers=()=>Object.entries(members).filter(([,m])=>m&&m.name&&m.online!==false);
 
 async function copyInviteLink(btn=$("inviteBtn")){
@@ -387,13 +388,18 @@ function renderKalim(k){
   const turnHint=playedThisTurn?'<div class="turn-hint">✓ نزلت بطاقة هذا الدور. لو كانت بالخطأ اضغط البطاقة المميزة في الوسط لإرجاعها أولًا.</div>':'';
   const starModal=choosingStar?`<div class="star-choice-backdrop"><div class="star-choice-card"><div class="star-choice-icon">★</div><h3>اختار حرف النجمة</h3><p>عندك 4 ثوانٍ مجانية، وبعدها يكمل وقتك الأساسي من حيث توقف.</p><div class="star-grace" id="starGraceText">${k.starChoice?.resumed?'بدأ وقتك الأساسي':`المهلة المجانية: ${Math.ceil(starGraceRemaining(k)/1000)} ث`}</div><form id="starChoiceForm"><input id="starLetterInput" maxlength="1" inputmode="text" autocomplete="off" placeholder="مثال: م" autofocus><div class="star-choice-actions"><button class="primary" type="submit">تأكيد الحرف</button><button class="secondary" id="cancelStarChoice" type="button">إلغاء</button></div><div class="status-message" id="starChoiceMsg"></div></form></div></div>`:'';
   const deckEmpty=!(k.deck?.length);
-  $("playerApp").innerHTML=`<div class="kalim-layout"><div class="opponents">${opp}</div><div class="question-box"><div class="small">الدور الآن</div><div class="question">${escapeHtml(names[k.currentUid]||'')}</div><div class="timer" id="kTimer">${Math.ceil(rem(k)/1000)}</div><div class="word">${word}</div><div class="game-status">${escapeHtml(k.lastAction||'')}</div>${turnHint}<div class="toolbar kalim-actions" style="justify-content:center"><button class="primary" id="bellBtn" ${active&&!k.starChoice?'':'disabled'}>🔔 الجرس</button><button class="secondary" id="drawBtn" ${deckEmpty||k.winnerUid?'disabled':''}>+ سحب</button><button class="secondary" id="resetTimerBtn" ${k.transitionAt||k.starChoice?'disabled':''}>↻ إعادة الوقت</button><button class="secondary" id="pauseBtn" ${k.transitionAt||k.starChoice?'disabled':''}>${k.timerRunning?'⏸ إيقاف':'▶ استكمال'}</button></div></div>${k.winnerUid?`<div class="stage"><div class="winner">🏆 ${escapeHtml(names[k.winnerUid]||'الفائز')}</div></div>`:''}<div class="my-hand-wrap"><div style="display:flex;justify-content:space-between"><b>${escapeHtml(me.name)}${isOwner()?' 👑':''}</b><span class="small">${myHand.length} بطاقات · ضغطتان سريعًا لقلب البطاقة</span></div><div class="hand">${myHand.map((c,i)=>cardHtml(c,i,selectedCard===i,handLocked)).join('')}</div></div><button class="chat-fab" id="chatToggle">💬</button><div class="chat-drawer ${chatOpen?'':'hidden'}" id="chatDrawer"><div class="manage-head"><b>الدردشة</b><button class="secondary" id="chatClose">إغلاق</button></div><div class="chat" id="chatBox"></div><div class="entry"><input id="chatInput" placeholder="رسالة..."><button class="primary" id="chatSend">إرسال</button></div></div>${starModal}</div>`;
+  const moderator=canModerateKalim();
+  const myLastDraw=k.lastDraws?.[user.uid]||null;
+  const undoDrawBtn=myLastDraw?'<button class="secondary" id="undoLastDrawBtn">↩ إرجاع آخر سحب</button>':'';
+  $("playerApp").innerHTML=`<div class="kalim-layout"><div class="opponents">${opp}</div><div class="question-box"><div class="small">الدور الآن</div><div class="question">${escapeHtml(names[k.currentUid]||'')}</div><div class="timer" id="kTimer">${Math.ceil(rem(k)/1000)}</div><div class="word">${word}</div><div class="game-status">${escapeHtml(k.lastAction||'')}</div>${turnHint}<div class="toolbar kalim-actions" style="justify-content:center"><button class="primary" id="bellBtn" ${active&&!k.starChoice?'':'disabled'}>🔔 الجرس</button><button class="secondary" id="drawBtn" ${deckEmpty||k.winnerUid?'disabled':''}>+ سحب</button>${undoDrawBtn}<button class="secondary" id="resetTimerBtn" ${moderator&&!k.transitionAt&&!k.starChoice?'':'disabled'}>↻ إعادة الوقت</button><button class="secondary" id="pauseBtn" ${moderator&&!k.transitionAt&&!k.starChoice?'':'disabled'}>${k.timerRunning?'⏸ إيقاف':'▶ استكمال'}</button><button class="secondary" id="returnTurnBtn" ${moderator&&!k.starChoice?'':'disabled'}>↩ إرجاع الدور</button></div></div>${k.winnerUid?`<div class="stage"><div class="winner">🏆 ${escapeHtml(names[k.winnerUid]||'الفائز')}</div></div>`:''}<div class="my-hand-wrap"><div style="display:flex;justify-content:space-between"><b>${escapeHtml(me.name)}${isOwner()?' 👑':me?.role==='cohost'?' 🛡️':''}</b><span class="small">${myHand.length} بطاقات · ضغطتان سريعًا لقلب البطاقة</span></div><div class="hand">${myHand.map((c,i)=>cardHtml(c,i,selectedCard===i,handLocked)).join('')}</div></div><button class="chat-fab" id="chatToggle">💬</button><div class="chat-drawer ${chatOpen?'':'hidden'}" id="chatDrawer"><div class="manage-head"><b>الدردشة</b><button class="secondary" id="chatClose">إغلاق</button></div><div class="chat" id="chatBox"></div><div class="entry"><input id="chatInput" placeholder="رسالة..."><button class="primary" id="chatSend">إرسال</button></div></div>${starModal}</div>`;
   document.querySelectorAll('[data-card]').forEach(b=>{b.onclick=e=>handleCardTap(+b.dataset.card,e);});
   document.querySelectorAll('[data-slot]').forEach(b=>{b.onclick=()=>playSlot(+b.dataset.slot);});
   const draw=$("drawBtn");if(draw)draw.onclick=drawCard;
   const bellBtn=$("bellBtn");if(bellBtn)bellBtn.onclick=bell;
   const pauseBtn=$("pauseBtn");if(pauseBtn)pauseBtn.onclick=pauseResume;
   const resetBtn=$("resetTimerBtn");if(resetBtn)resetBtn.onclick=resetKalimTimer;
+  const returnBtn=$("returnTurnBtn");if(returnBtn)returnBtn.onclick=openReturnTurnDialog;
+  const undoDraw=$("undoLastDrawBtn");if(undoDraw)undoDraw.onclick=undoLastDraw;
   const chatSend=$("chatSend");if(chatSend)chatSend.onclick=sendChat;
   const chatToggle=$("chatToggle");if(chatToggle)chatToggle.onclick=()=>{chatOpen=true;$("chatDrawer").classList.remove("hidden");};
   const chatClose=$("chatClose");if(chatClose)chatClose.onclick=()=>{chatOpen=false;$("chatDrawer").classList.add("hidden");};
@@ -455,6 +461,7 @@ async function playSlot(slot){
     hand.splice(idx,1);
     k.stacks[slot].push({letter:f,other:o,ownerUid:user.uid,card});
     k.turnPlay={uid:user.uid,slot};
+    if(k.lastDraws)delete k.lastDraws[user.uid];
     k.lastAction=`${me.name} وضع حرف ${f}`;
     if(hand.length===0)k.winnerUid=user.uid;
     return k;
@@ -480,6 +487,7 @@ async function confirmStarLetter(){
     hand.splice(sc.cardIndex,1);
     k.stacks[sc.slot].push({letter,other:o,ownerUid:user.uid,card});
     k.turnPlay={uid:user.uid,slot:sc.slot};
+    if(k.lastDraws)delete k.lastDraws[user.uid];
     k.starChoice=null;
     k.lastAction=`${me.name} استخدم النجمة كحرف ${letter}`;
     if(hand.length===0)k.winnerUid=user.uid;
@@ -516,11 +524,36 @@ async function undoSlot(slot){
 }
 
 // السحب متاح لكل لاعب في أي وقت، حتى لو لم يكن دوره.
+// كل لاعب يستطيع التراجع عن آخر بطاقة سحبها فقط، إلى أن يسحب مرة أخرى أو يلعب بطاقة.
 async function drawCard(){
+  selectedCard=null;
   await runTransaction(rr('public/kalim'),k=>{
     if(!k||k.winnerUid)return k;
     const hand=k.hands?.[user.uid];if(!hand)return k;
-    const c=k.deck?.pop();if(c){hand.push(c);k.lastAction=`${me.name} سحب بطاقة`;}
+    const c=k.deck?.pop();
+    if(c){
+      if(!c.id)c.id=`${user.uid}-${Date.now()}-${hand.length}`;
+      hand.push(c);
+      k.lastDraws=k.lastDraws||{};
+      k.lastDraws[user.uid]={cardId:c.id,drawnAt:Date.now()};
+      k.lastAction=`${me.name} سحب بطاقة`;
+    }
+    return k;
+  });
+}
+
+async function undoLastDraw(){
+  selectedCard=null;
+  await runTransaction(rr('public/kalim'),k=>{
+    if(!k)return k;
+    const info=k.lastDraws?.[user.uid],hand=k.hands?.[user.uid];
+    if(!info||!hand)return k;
+    const idx=hand.findIndex(c=>c?.id===info.cardId);
+    if(idx<0){delete k.lastDraws[user.uid];return k;}
+    const [card]=hand.splice(idx,1);
+    k.deck=k.deck||[];k.deck.push(card);
+    delete k.lastDraws[user.uid];
+    k.lastAction=`${me.name} رجّع آخر بطاقة سحبها`;
     return k;
   });
 }
@@ -542,6 +575,7 @@ async function bell(){
 }
 
 async function pauseResume(){
+  if(!canModerateKalim())return;
   await runTransaction(rr('public/kalim'),k=>{
     if(!k||k.transitionAt||k.starChoice)return k;
     if(k.timerRunning){k.remainingMs=Math.max(0,(k.deadline||Date.now())-Date.now());k.timerRunning=false;k.lastAction='تم إيقاف الوقت.';}
@@ -551,11 +585,37 @@ async function pauseResume(){
 }
 
 async function resetKalimTimer(){
+  if(!canModerateKalim())return;
   await runTransaction(rr('public/kalim'),k=>{
     if(!k||k.transitionAt||k.starChoice)return k;
     const ms=k.timerMs||14000,n=Date.now();
     k.remainingMs=ms;k.deadline=n+ms;k.timerRunning=true;k.bellStopped=false;
     k.lastAction=`أُعيد الوقت إلى ${Math.round(ms/1000)} ثانية.`;
+    return k;
+  });
+}
+
+function openReturnTurnDialog(){
+  if(!canModerateKalim()||!lastPublic)return;
+  document.getElementById('returnTurnDialog')?.remove();
+  const names=Object.fromEntries(Object.entries(members).map(([u,m])=>[u,m.name]));
+  const overlay=document.createElement('div');overlay.id='returnTurnDialog';overlay.className='manage-modal';
+  overlay.innerHTML=`<div class="manage-card"><div class="manage-head"><b>↩ إرجاع الدور</b><button class="secondary" id="returnTurnClose">إغلاق</button></div><div class="small" style="margin-bottom:10px">اختار اللاعب الذي تريد إرجاع الدور له.</div><div class="member-list">${(lastPublic.order||[]).map(u=>`<button class="return-turn-option ${u===lastPublic.currentUid?'current':''}" data-u="${u}"><b>${escapeHtml(names[u]||'لاعب')}</b><span class="small">${u===lastPublic.currentUid?'دوره الآن':'إرجاع الدور'}</span></button>`).join('')}</div></div>`;
+  document.body.appendChild(overlay);
+  const close=()=>overlay.remove();
+  overlay.querySelector('#returnTurnClose').onclick=close;
+  overlay.onclick=e=>{if(e.target===overlay)close();};
+  overlay.querySelectorAll('.return-turn-option').forEach(b=>b.onclick=async()=>{b.disabled=true;await returnKalimTurnTo(b.dataset.u);close();});
+}
+
+async function returnKalimTurnTo(uid){
+  if(!canModerateKalim())return;
+  await runTransaction(rr('public/kalim'),k=>{
+    if(!k||k.starChoice)return k;
+    const idx=(k.order||[]).indexOf(uid);if(idx<0)return k;
+    const ms=k.timerMs||14000,n=Date.now();
+    k.currentIndex=idx;k.currentUid=uid;k.remainingMs=ms;k.deadline=n+ms;k.timerRunning=true;k.bellStopped=false;k.transitionAt=null;k.turnPlay=null;k.starChoice=null;
+    k.lastAction=`تم إرجاع الدور إلى ${members[uid]?.name||'اللاعب'}`;
     return k;
   });
 }

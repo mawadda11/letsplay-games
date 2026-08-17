@@ -102,3 +102,9 @@ button.pill{color:#d9e1f8;cursor:pointer}
 .star-choice-card input:focus{border-color:var(--gold)}
 .star-choice-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
 @media(max-width:560px){.top-actions{gap:5px}.top-actions .pill{padding:5px 7px;font-size:9px}.star-choice-card{padding:16px;border-radius:19px}.kalim-actions{gap:5px}.kalim-actions button{flex:1 1 42%;min-height:42px}}
+
+/* v8 Kalim moderator controls + draw undo */
+.return-turn-option{width:100%;background:#111b33;border:1px solid var(--line);border-radius:13px;padding:11px;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:right}
+.return-turn-option.current{border-color:var(--gold)}
+.return-turn-option:disabled{opacity:.55}
+#undoLastDrawBtn{border-color:#5b4a22;color:#ffe8a3}
